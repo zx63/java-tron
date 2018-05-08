@@ -416,7 +416,7 @@ public class Manager {
   /**
    * push transaction into db.
    */
-  public synchronized boolean pushTransactions(final TransactionCapsule trx)
+  public boolean pushTransactions(final TransactionCapsule trx)
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       ValidateBandwidthException, DupTransactionException, TaposException {
     logger.info("push transaction");
@@ -434,18 +434,18 @@ public class Manager {
     //validateTapos(trx);
 
     //validateFreq(trx);
+    synchronized (this) {
+      if (!dialog.valid()) {
+        dialog.setValue(revokingStore.buildDialog());
+      }
 
-    if (!dialog.valid()) {
-      dialog.setValue(revokingStore.buildDialog());
-    }
-
-    try (RevokingStore.Dialog tmpDialog = revokingStore.buildDialog()) {
-      //consumeBandwidth(trx);
-      processTransaction(trx);
-      pendingTransactions.add(trx);
-      tmpDialog.merge();
-    } catch (RevokingStoreIllegalStateException e) {
-      logger.debug(e.getMessage(), e);
+      try (RevokingStore.Dialog tmpDialog = revokingStore.buildDialog()) {
+        processTransaction(trx);
+        pendingTransactions.add(trx);
+        tmpDialog.merge();
+      } catch (RevokingStoreIllegalStateException e) {
+        logger.debug(e.getMessage(), e);
+      }
     }
 
     logger.info("tail TrxLeft[" + pendingTransactions.size() + "]");
@@ -465,8 +465,8 @@ public class Manager {
       long bandwidth = accountCapsule.getBandwidth();
       long now = Time.getCurrentMillis();
       long latestOperationTime = accountCapsule.getLatestOperationTime();
-      //5 * 60 * 1000
-      if (now - latestOperationTime >= 300_000L) {
+      //10 * 1000
+      if (now - latestOperationTime >= 10_000L) {
         accountCapsule.setLatestOperationTime(now);
         this.getAccountStore().put(accountCapsule.createDbKey(), accountCapsule);
         return;
@@ -806,7 +806,7 @@ public class Manager {
    */
   public boolean containBlock(final Sha256Hash blockHash) {
     try {
-      return this.khaosDb.containBlock(blockHash) || blockStore.get(blockHash.getBytes()) != null;
+      return this.khaosDb.containBlockInMiniStore(blockHash) || blockStore.get(blockHash.getBytes()) != null;
     } catch (ItemNotFoundException e) {
       return false;
     } catch (BadItemException e) {
@@ -927,7 +927,8 @@ public class Manager {
       // judge block size
       if (currentTrxSize > ChainConstant.TRXS_SIZE) {
         if (postponedTrxCount == 0) {
-          logger.info("first postponed trx size: {}, current trx size: {}, serialized size: {}", RamUsageEstimator.sizeOf(trx.getData()), currentTrxSize, trx.getInstance().getSerializedSize());
+          logger.info("first postponed trx size: {}, current trx size: {}, serialized size: {}", RamUsageEstimator
+              .sizeOf(trx.getData()), currentTrxSize, trx.getInstance().getSerializedSize());
         }
         postponedTrxCount++;
         continue;
@@ -1015,6 +1016,7 @@ public class Manager {
       this.updateLatestSolidifiedBlock();
 
       for (TransactionCapsule transactionCapsule : block.getTransactions()) {
+        transactionCapsule.setValidated(block.generatedByMyself);
         processTransaction(transactionCapsule);
       }
 
