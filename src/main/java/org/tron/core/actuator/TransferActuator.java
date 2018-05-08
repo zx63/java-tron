@@ -1,5 +1,6 @@
 package org.tron.core.actuator;
 
+import com.google.common.base.Preconditions;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -9,8 +10,8 @@ import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
 import org.tron.core.config.Parameter.ChainConstant;
-import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
+import org.tron.core.exception.BalanceInsufficientException;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Contract.TransferContract;
@@ -20,9 +21,21 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 @Slf4j
 public class TransferActuator extends AbstractActuator {
 
+  TransferContract transferContract;
+  byte[] ownerAddress;
+  byte[] toAddress;
+  long amount;
 
   TransferActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      transferContract = contract.unpack(TransferContract.class);
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    }
+    amount = transferContract.getAmount();
+    toAddress = transferContract.getToAddress().toByteArray();
+    ownerAddress = transferContract.getOwnerAddress().toByteArray();
   }
 
   @Override
@@ -30,34 +43,33 @@ public class TransferActuator extends AbstractActuator {
 
     long fee = calcFee();
     try {
-      TransferContract transferContract = contract.unpack(TransferContract.class);
-      long amount = transferContract.getAmount();
 
-      dbManager.adjustBalance(transferContract.getOwnerAddress().toByteArray(),
-          -Math.addExact(amount, fee));
-      dbManager.adjustBalance(transferContract.getToAddress().toByteArray(), amount);
+      dbManager.adjustBalance(transferContract.getOwnerAddress().toByteArray(), -calcFee());
       ret.setStatus(fee, code.SUCESS);
-    } catch (Exception e) {
+      dbManager.adjustBalance(transferContract.getOwnerAddress().toByteArray(),
+          -amount);
+      dbManager.adjustBalance(transferContract.getToAddress().toByteArray(),
+          amount);
+    } catch (BalanceInsufficientException e) {
+      logger.debug(e.getMessage(), e);
+      ret.setStatus(fee, code.FAILED);
+      throw new ContractExeException(e.getMessage());
+    } catch (ArithmeticException e) {
       logger.debug(e.getMessage(), e);
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
     }
-
     return true;
   }
 
   @Override
   public boolean validate() throws ContractValidateException {
-    long fee = calcFee();
     try {
-      if (!contract.is(TransferContract.class)) {
+      if (transferContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [TransferContract],real type[" + contract
                 .getClass() + "]");
       }
-      TransferContract transferContract = this.contract.unpack(TransferContract.class);
-      byte[] ownerAddress = transferContract.getOwnerAddress().toByteArray();
-      byte[] toAddress = transferContract.getToAddress().toByteArray();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
@@ -65,49 +77,52 @@ public class TransferActuator extends AbstractActuator {
         throw new ContractValidateException("Invalidate toAddress");
       }
 
-      if (Arrays.equals(ownerAddress, toAddress)) {
+      Preconditions.checkNotNull(transferContract.getAmount(), "Amount is null");
+
+      if (Arrays.equals(toAddress, ownerAddress)) {
         throw new ContractValidateException("Cannot transfer trx to yourself.");
       }
 
-      AccountStore accountStore = dbManager.getAccountStore();
-      AccountCapsule ownerAccount = accountStore.get(ownerAddress);
+      AccountCapsule ownerAccount = dbManager.getAccountStore()
+          .get(transferContract.getOwnerAddress().toByteArray());
+
       if (ownerAccount == null) {
         throw new ContractValidateException("Validate TransferContract error, no OwnerAccount.");
       }
 
       long balance = ownerAccount.getBalance();
-      if (ownerAccount.getBalance() < fee) {
+
+      if (ownerAccount.getBalance() < calcFee()) {
         throw new ContractValidateException("Validate TransferContract error, insufficient fee.");
       }
-      long amount = transferContract.getAmount();
+
       if (amount <= 0) {
         throw new ContractValidateException("Amount must greater than 0.");
       }
-      if (balance < Math.addExact(amount, fee)) {
+
+      if (balance < Math.addExact(amount, calcFee())) {
         throw new ContractValidateException("balance is not sufficient.");
       }
 
       // if account with to_address is not existed,  create it.
-      AccountCapsule toAccount = accountStore.get(toAddress);
+      AccountCapsule toAccount = dbManager.getAccountStore()
+          .get(transferContract.getToAddress().toByteArray());
       if (toAccount == null) {
         long min = dbManager.getDynamicPropertiesStore().getNonExistentAccountTransferMin();
         if (amount < min) {
           throw new ContractValidateException(
               "For a non-existent account transfer, the minimum amount is 1 TRX");
         }
-        toAccount = new AccountCapsule(transferContract.getToAddress(), AccountType.Normal,
+        toAccount = new AccountCapsule(ByteString.copyFrom(toAddress), AccountType.Normal,
             System.currentTimeMillis());
-        accountStore.put(toAddress, toAccount);
+        dbManager.getAccountStore().put(toAddress, toAccount);
       } else {
         //check to account balance if overflow
-        balance = Math
-            .addExact(toAccount.getBalance(),
-                amount);
+        balance = Math.addExact(toAccount.getBalance(), amount);
       }
     } catch (Exception ex) {
       throw new ContractValidateException(ex.getMessage());
     }
-
     return true;
   }
 

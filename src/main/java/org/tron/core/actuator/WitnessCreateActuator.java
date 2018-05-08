@@ -94,7 +94,6 @@ public class WitnessCreateActuator extends AbstractActuator {
 
   private void createWitness(final WitnessCreateContract witnessCreateContract) {
     //Create Witness by witnessCreateContract
-
     final WitnessCapsule witnessCapsule = new WitnessCapsule(
         witnessCreateContract.getOwnerAddress(), 0, witnessCreateContract.getUrl().toStringUtf8());
 
@@ -102,9 +101,12 @@ public class WitnessCreateActuator extends AbstractActuator {
     this.dbManager.getWitnessStore().put(witnessCapsule.createDbKey(), witnessCapsule);
 
     try {
-      int cost = dbManager.getDynamicPropertiesStore().getAccountUpgradeCost();
-      dbManager.adjustBalance(witnessCreateContract.getOwnerAddress().toByteArray(), -cost);
-      dbManager.adjustBalance(this.dbManager.getAccountStore().getBlackhole().createDbKey(), +cost);
+      dbManager.adjustBalance(witnessCreateContract.getOwnerAddress().toByteArray(),
+          -dbManager.getDynamicPropertiesStore().getAccountUpgradeCost());
+
+      dbManager.adjustBalance(this.dbManager.getAccountStore().getBlackhole().createDbKey(),
+          +dbManager.getDynamicPropertiesStore().getAccountUpgradeCost());
+
     } catch (BalanceInsufficientException e) {
       throw new RuntimeException(e);
     }
