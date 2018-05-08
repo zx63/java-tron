@@ -9,6 +9,7 @@ import org.tron.common.utils.StringUtil;
 import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
+import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
@@ -29,9 +30,9 @@ public class WithdrawBalanceActuator extends AbstractActuator {
     try {
       WithdrawBalanceContract withdrawBalanceContract = contract
           .unpack(WithdrawBalanceContract.class);
-
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(withdrawBalanceContract.getOwnerAddress().toByteArray());
+      AccountStore accountStore = dbManager.getAccountStore();
+      byte[] ownerAddress = withdrawBalanceContract.getOwnerAddress().toByteArray();
+      AccountCapsule accountCapsule = accountStore.get(ownerAddress);
       long oldBalance = accountCapsule.getBalance();
       long allowance = accountCapsule.getAllowance();
 
@@ -41,10 +42,10 @@ public class WithdrawBalanceActuator extends AbstractActuator {
           .setAllowance(0L)
           .setLatestWithdrawTime(now)
           .build());
-      dbManager.getAccountStore().put(accountCapsule.createDbKey(), accountCapsule);
+      accountStore.put(ownerAddress, accountCapsule);
 
       ret.setStatus(fee, code.SUCESS);
-    } catch (InvalidProtocolBufferException e) {
+    } catch (Exception e) {
       logger.debug(e.getMessage(), e);
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
@@ -63,25 +64,23 @@ public class WithdrawBalanceActuator extends AbstractActuator {
 
       WithdrawBalanceContract withdrawBalanceContract = this.contract
           .unpack(WithdrawBalanceContract.class);
-      ByteString ownerAddress = withdrawBalanceContract.getOwnerAddress();
-      if (!Wallet.addressValid(ownerAddress.toByteArray())) {
+      byte[] ownerAddress = withdrawBalanceContract.getOwnerAddress().toByteArray();
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
 
-      if (!dbManager.getAccountStore().has(ownerAddress.toByteArray())) {
+      AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
+      if (accountCapsule == null) {
         String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
         throw new ContractValidateException(
             "Account[" + readableOwnerAddress + "] not exists");
       }
 
-      if (!dbManager.getWitnessStore().has(ownerAddress.toByteArray())) {
+      if (!dbManager.getWitnessStore().has(ownerAddress)) {
         String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
         throw new ContractValidateException(
             "Account[" + readableOwnerAddress + "] is not a witnessAccount");
       }
-
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(ownerAddress.toByteArray());
 
       long latestWithdrawTime = accountCapsule.getLatestWithdrawTime();
       long now = System.currentTimeMillis();
