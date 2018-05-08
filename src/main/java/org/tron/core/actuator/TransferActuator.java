@@ -1,6 +1,5 @@
 package org.tron.core.actuator;
 
-import com.google.common.base.Preconditions;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -10,8 +9,8 @@ import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
 import org.tron.core.config.Parameter.ChainConstant;
+import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
-import org.tron.core.exception.BalanceInsufficientException;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Contract.TransferContract;
@@ -25,6 +24,7 @@ public class TransferActuator extends AbstractActuator {
   byte[] ownerAddress;
   byte[] toAddress;
   long amount;
+  long fee;
 
   TransferActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
@@ -36,25 +36,16 @@ public class TransferActuator extends AbstractActuator {
     amount = transferContract.getAmount();
     toAddress = transferContract.getToAddress().toByteArray();
     ownerAddress = transferContract.getOwnerAddress().toByteArray();
+    fee = calcFee();
   }
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-
-    long fee = calcFee();
     try {
-
-      dbManager.adjustBalance(transferContract.getOwnerAddress().toByteArray(), -calcFee());
+      dbManager.adjustBalance(ownerAddress, -Math.addExact(amount, fee));
+      dbManager.adjustBalance(toAddress, amount);
       ret.setStatus(fee, code.SUCESS);
-      dbManager.adjustBalance(transferContract.getOwnerAddress().toByteArray(),
-          -amount);
-      dbManager.adjustBalance(transferContract.getToAddress().toByteArray(),
-          amount);
-    } catch (BalanceInsufficientException e) {
-      logger.debug(e.getMessage(), e);
-      ret.setStatus(fee, code.FAILED);
-      throw new ContractExeException(e.getMessage());
-    } catch (ArithmeticException e) {
+    } catch (Exception e) {
       logger.debug(e.getMessage(), e);
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
@@ -77,36 +68,27 @@ public class TransferActuator extends AbstractActuator {
         throw new ContractValidateException("Invalidate toAddress");
       }
 
-      Preconditions.checkNotNull(transferContract.getAmount(), "Amount is null");
-
       if (Arrays.equals(toAddress, ownerAddress)) {
         throw new ContractValidateException("Cannot transfer trx to yourself.");
-      }
-
-      AccountCapsule ownerAccount = dbManager.getAccountStore()
-          .get(transferContract.getOwnerAddress().toByteArray());
-
-      if (ownerAccount == null) {
-        throw new ContractValidateException("Validate TransferContract error, no OwnerAccount.");
-      }
-
-      long balance = ownerAccount.getBalance();
-
-      if (ownerAccount.getBalance() < calcFee()) {
-        throw new ContractValidateException("Validate TransferContract error, insufficient fee.");
       }
 
       if (amount <= 0) {
         throw new ContractValidateException("Amount must greater than 0.");
       }
 
-      if (balance < Math.addExact(amount, calcFee())) {
+      AccountStore accountStore = dbManager.getAccountStore();
+      AccountCapsule ownerAccount = accountStore.get(ownerAddress);
+      if (ownerAccount == null) {
+        throw new ContractValidateException("Validate TransferContract error, no OwnerAccount.");
+      }
+
+      long balance = ownerAccount.getBalance();
+      if (balance < Math.addExact(amount, fee)) {
         throw new ContractValidateException("balance is not sufficient.");
       }
 
       // if account with to_address is not existed,  create it.
-      AccountCapsule toAccount = dbManager.getAccountStore()
-          .get(transferContract.getToAddress().toByteArray());
+      AccountCapsule toAccount = accountStore.get(toAddress);
       if (toAccount == null) {
         long min = dbManager.getDynamicPropertiesStore().getNonExistentAccountTransferMin();
         if (amount < min) {
