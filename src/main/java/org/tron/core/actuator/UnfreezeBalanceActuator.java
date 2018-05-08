@@ -11,6 +11,7 @@ import org.tron.common.utils.StringUtil;
 import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
+import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
@@ -32,8 +33,8 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
     try {
       UnfreezeBalanceContract unfreezeBalanceContract = contract
           .unpack(UnfreezeBalanceContract.class);
-
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
+      AccountStore accountStore = dbManager.getAccountStore();
+      AccountCapsule accountCapsule = accountStore
           .get(unfreezeBalanceContract.getOwnerAddress().toByteArray());
       long oldBalance = accountCapsule.getBalance();
       long unfreezeBalance = 0L;
@@ -52,10 +53,10 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
       accountCapsule.setInstance(accountCapsule.getInstance().toBuilder()
           .setBalance(oldBalance + unfreezeBalance)
           .clearFrozen().addAllFrozen(frozenList).build());
-      dbManager.getAccountStore().put(accountCapsule.createDbKey(), accountCapsule);
+      accountStore.put(accountCapsule.createDbKey(), accountCapsule);
 
       ret.setStatus(fee, code.SUCESS);
-    } catch (InvalidProtocolBufferException e) {
+    } catch (Exception e) {
       logger.debug(e.getMessage(), e);
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
@@ -74,19 +75,17 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
 
       UnfreezeBalanceContract unfreezeBalanceContract = this.contract
           .unpack(UnfreezeBalanceContract.class);
-      ByteString ownerAddress = unfreezeBalanceContract.getOwnerAddress();
-      if (!Wallet.addressValid(ownerAddress.toByteArray())) {
+      byte[] ownerAddress = unfreezeBalanceContract.getOwnerAddress().toByteArray();
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
 
-      if (!dbManager.getAccountStore().has(ownerAddress.toByteArray())) {
+      AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
+      if (accountCapsule == null) {
         String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
         throw new ContractValidateException(
             "Account[" + readableOwnerAddress + "] not exists");
       }
-
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(ownerAddress.toByteArray());
 
       if (accountCapsule.getFrozenCount() <= 0) {
         throw new ContractValidateException("no frozenBalance");
