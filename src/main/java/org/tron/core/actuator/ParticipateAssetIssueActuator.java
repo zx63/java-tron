@@ -32,106 +32,110 @@ import org.tron.core.db.AssetIssueStore;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
-import org.tron.protos.Contract;
+import org.tron.protos.Contract.ParticipateAssetIssueContract;
 import org.tron.protos.Protocol.Transaction.Result.code;
 
 
 @Slf4j
 public class ParticipateAssetIssueActuator extends AbstractActuator {
 
+  ParticipateAssetIssueContract participateAssetIssueContract;
+  byte[] ownerAddress;
+  byte[] toAddress;
+  byte[] assetName;
+  long amount;
+  long fee;
+
   ParticipateAssetIssueActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      participateAssetIssueContract = contract.unpack(ParticipateAssetIssueContract.class);
+      ownerAddress = participateAssetIssueContract.getOwnerAddress().toByteArray();
+      toAddress = participateAssetIssueContract.getToAddress().toByteArray();
+      assetName = participateAssetIssueContract.getAssetName().toByteArray();
+      amount = participateAssetIssueContract.getAmount();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
+    }
   }
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
 
     try {
-      Contract.ParticipateAssetIssueContract participateAssetIssueContract =
-          contract.unpack(Contract.ParticipateAssetIssueContract.class);
-
-      long cost = participateAssetIssueContract.getAmount();
-
       //subtract from owner address
-      byte[] ownerAddressBytes = participateAssetIssueContract.getOwnerAddress().toByteArray();
-      ByteString assetName = participateAssetIssueContract.getAssetName();
       AccountStore accountStore = this.dbManager.getAccountStore();
-      AccountCapsule ownerAccount = accountStore.get(ownerAddressBytes);
-      long balance = Math.subtractExact(ownerAccount.getBalance(), cost);
+      AccountCapsule ownerAccount = accountStore.get(ownerAddress);
+      long balance = Math.subtractExact(ownerAccount.getBalance(), amount);
       balance = Math.subtractExact(balance, fee);
       ownerAccount.setBalance(balance);
 
       //calculate the exchange amount
-      AssetIssueCapsule assetIssueCapsule =
-          this.dbManager.getAssetIssueStore()
-              .get(assetName.toByteArray());
-      long exchangeAmount = Math.multiplyExact(cost, assetIssueCapsule.getNum());
+      AssetIssueCapsule assetIssueCapsule = this.dbManager.getAssetIssueStore().get(assetName);
+      long exchangeAmount = Math.multiplyExact(amount, assetIssueCapsule.getNum());
       exchangeAmount = Math.floorDiv(exchangeAmount, assetIssueCapsule.getTrxNum());
-      ownerAccount.addAssetAmount(assetName, exchangeAmount);
+      ownerAccount.addAssetAmount(ByteString.copyFrom(assetName), exchangeAmount);
 
       //add to to_address
-      byte[] toAddressBytes = participateAssetIssueContract.getToAddress().toByteArray();
-      AccountCapsule toAccount = accountStore.get(toAddressBytes);
-      toAccount.setBalance(Math.addExact(toAccount.getBalance(), cost));
-      if (!toAccount.reduceAssetAmount(assetName, exchangeAmount)) {
+      AccountCapsule toAccount = accountStore.get(toAddress);
+      toAccount.setBalance(Math.addExact(toAccount.getBalance(), amount));
+      if (!toAccount.reduceAssetAmount(ByteString.copyFrom(assetName), exchangeAmount)) {
         throw new ContractExeException("reduceAssetAmount failed !");
       }
 
       //write to db
-      accountStore.put(ownerAddressBytes, ownerAccount);
-      accountStore.put(toAddressBytes, toAccount);
+      accountStore.put(ownerAddress, ownerAccount);
+      accountStore.put(toAddress, toAccount);
 
       ret.setStatus(fee, code.SUCESS);
-
-      return true;
     } catch (Exception e) {
       ret.setStatus(fee, code.FAILED);
       logger.debug(e.getMessage(), e);
       throw new ContractExeException(e.getMessage());
     }
+    return true;
   }
 
   @Override
   public boolean validate() throws ContractValidateException {
-    if (!this.contract.is(Contract.ParticipateAssetIssueContract.class)) {
-      throw new ContractValidateException();
-    }
-
     try {
-      final Contract.ParticipateAssetIssueContract participateAssetIssueContract =
-          this.contract.unpack(Contract.ParticipateAssetIssueContract.class);
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (participateAssetIssueContract == null) {
+        throw new ContractValidateException(
+            "contract type error,expected type [ParticipateAssetIssueContract],real type["
+                + contract
+                .getClass() + "]");
+      }
 
-      byte[] addressBytes = participateAssetIssueContract.getOwnerAddress().toByteArray();
-      byte[] toAddress = participateAssetIssueContract.getToAddress().toByteArray();
-      ByteString assetName = participateAssetIssueContract.getAssetName();
-      long amount = participateAssetIssueContract.getAmount();
       //Parameters check
-      if (!Wallet.addressValid(addressBytes)) {
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
       if (!Wallet.addressValid(toAddress)) {
         throw new ContractValidateException("Invalidate toAddress");
       }
       Preconditions.checkNotNull(assetName, "Asset name is null");
-      byte[] assetNameBytes = assetName.toByteArray();
 
       if (amount <= 0) {
         throw new ContractValidateException("Amount must greater than 0!");
       }
 
-      if (Arrays.equals(addressBytes, toAddress)) {
+      if (Arrays.equals(ownerAddress, toAddress)) {
         throw new ContractValidateException("Cannot participate asset Issue yourself !");
       }
 
       //Whether the account exist
       AccountStore accountStore = this.dbManager.getAccountStore();
-      AccountCapsule accountCapsule = accountStore.get(addressBytes);
+      AccountCapsule accountCapsule = accountStore.get(ownerAddress);
       if (accountCapsule == null) {
         throw new ContractValidateException("Account does not exist!");
       }
 
-      long fee = calcFee();
       //Whether the balance is enough
       if (accountCapsule.getBalance() < Math.addExact(amount, fee)) {
         throw new ContractValidateException("No enough balance !");
@@ -139,12 +143,11 @@ public class ParticipateAssetIssueActuator extends AbstractActuator {
 
       //Whether have the mapping
       AssetIssueStore assetIssueStore = this.dbManager.getAssetIssueStore();
-      AssetIssueCapsule assetIssueCapsule = assetIssueStore.get(assetNameBytes);
+      AssetIssueCapsule assetIssueCapsule = assetIssueStore.get(assetName);
       if (assetIssueCapsule == null) {
-        throw new ContractValidateException("No asset named " + ByteArray.toStr(assetNameBytes));
+        throw new ContractValidateException("No asset named " + ByteArray.toStr(assetName));
       }
-      if (!participateAssetIssueContract.getToAddress()
-          .equals(assetIssueCapsule.getOwnerAddress())) {
+      if (!Arrays.equals(toAddress, assetIssueCapsule.getOwnerAddress().toByteArray())) {
         throw new ContractValidateException(
             "The asset is not issued by " + ByteArray.toHexString(toAddress));
       }
@@ -165,7 +168,7 @@ public class ParticipateAssetIssueActuator extends AbstractActuator {
       if (toAccount == null) {
         throw new ContractValidateException("To account does not exist!");
       }
-      if (!toAccount.assetBalanceEnough(assetName, exchangeAmount)) {
+      if (!toAccount.assetBalanceEnough(ByteString.copyFrom(assetName), exchangeAmount)) {
         throw new ContractValidateException("Asset balance is not enough !");
       }
 

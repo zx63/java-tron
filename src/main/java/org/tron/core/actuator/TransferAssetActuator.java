@@ -18,8 +18,10 @@ package org.tron.core.actuator;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import java.util.Arrays;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.tron.common.utils.ByteArray;
 import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
@@ -31,41 +33,45 @@ import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Contract.TransferAssetContract;
 import org.tron.protos.Protocol.Transaction.Result.code;
 
+@Slf4j
 public class TransferAssetActuator extends AbstractActuator {
+
+  TransferAssetContract transferAssetContract;
+  byte[] assetName;
+  byte[] ownerAddress;
+  byte[] toAddress;
+  long amount;
+  long fee;
 
   TransferAssetActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      transferAssetContract = this.contract.unpack(TransferAssetContract.class);
+      amount = transferAssetContract.getAmount();
+      toAddress = transferAssetContract.getToAddress().toByteArray();
+      ownerAddress = transferAssetContract.getOwnerAddress().toByteArray();
+      assetName = transferAssetContract.getAssetName().toByteArray();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e) {
+      logger.error(e.getMessage(), e);
+    }
   }
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
-    if (!this.contract.is(TransferAssetContract.class)) {
-      throw new ContractExeException();
-    }
-
-    if (this.dbManager == null) {
-      throw new ContractExeException();
-    }
-
     try {
-      TransferAssetContract transferAssetContract = this.contract
-          .unpack(TransferAssetContract.class);
       AccountStore accountStore = this.dbManager.getAccountStore();
-      byte[] ownerKey = transferAssetContract.getOwnerAddress().toByteArray();
-      byte[] toKey = transferAssetContract.getToAddress().toByteArray();
-      ByteString assertName = transferAssetContract.getAssetName();
-      long amount = transferAssetContract.getAmount();
-
-      AccountCapsule ownerAccountCapsule = accountStore.get(ownerKey);
-      if (!ownerAccountCapsule.reduceAssetAmount(assertName, amount)) {
+      AccountCapsule ownerAccountCapsule = accountStore.get(ownerAddress);
+      if (!ownerAccountCapsule.reduceAssetAmount(ByteString.copyFrom(assetName), amount)) {
         throw new ContractExeException("reduceAssetAmount failed !");
       }
-      accountStore.put(ownerKey, ownerAccountCapsule);
+      accountStore.put(ownerAddress, ownerAccountCapsule);
 
-      AccountCapsule toAccountCapsule = accountStore.get(toKey);
-      toAccountCapsule.addAssetAmount(assertName, amount);
-      accountStore.put(toKey, toAccountCapsule);
+      AccountCapsule toAccountCapsule = accountStore.get(toAddress);
+      toAccountCapsule.addAssetAmount(ByteString.copyFrom(assetName), amount);
+      accountStore.put(toAddress, toAccountCapsule);
 
       ret.setStatus(fee, code.SUCESS);
     } catch (Exception e) {
@@ -78,18 +84,22 @@ public class TransferAssetActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      TransferAssetContract transferAssetContract = this.contract
-          .unpack(TransferAssetContract.class);
-      byte[] ownerAddress = transferAssetContract.getOwnerAddress().toByteArray();
-      byte[] toAddress = transferAssetContract.getToAddress().toByteArray();
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (transferAssetContract == null) {
+        throw new ContractValidateException(
+            "contract type error,expected type [TransferAssetContract],real type[" + contract
+                .getClass() + "]");
+      }
+
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
       if (!Wallet.addressValid(toAddress)) {
         throw new ContractValidateException("Invalidate toAddress");
       }
-      Preconditions.checkNotNull(transferAssetContract.getAssetName(), "AssetName is null");
-      long amount = transferAssetContract.getAmount();
+      Preconditions.checkNotNull(assetName, "AssetName is null");
       if (amount <= 0) {
         throw new ContractValidateException("Amount must greater than 0.");
       }
@@ -104,8 +114,7 @@ public class TransferAssetActuator extends AbstractActuator {
         throw new ContractValidateException("No owner account!");
       }
 
-      byte[] nameKey = transferAssetContract.getAssetName().toByteArray();
-      if (!this.dbManager.getAssetIssueStore().has(nameKey)) {
+      if (!this.dbManager.getAssetIssueStore().has(assetName)) {
         throw new ContractValidateException("No asset !");
       }
 
@@ -115,7 +124,7 @@ public class TransferAssetActuator extends AbstractActuator {
         throw new ContractValidateException("Owner no asset!");
       }
 
-      Long assetBalance = asset.get(ByteArray.toStr(nameKey));
+      Long assetBalance = asset.get(ByteArray.toStr(assetName));
       if (null == assetBalance || assetBalance <= 0) {
         throw new ContractValidateException("assetBalance must greater than 0.");
       }
@@ -129,7 +138,7 @@ public class TransferAssetActuator extends AbstractActuator {
         throw new ContractValidateException("To account is not exit!");
       }
 
-      assetBalance = toAccount.getAssetMap().get(ByteArray.toStr(nameKey));
+      assetBalance = toAccount.getAssetMap().get(ByteArray.toStr(assetName));
       if (assetBalance != null) {
         assetBalance = Math.addExact(assetBalance, amount); //check if overflow
       }

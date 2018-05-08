@@ -30,13 +30,15 @@ public class TransferActuator extends AbstractActuator {
     super(contract, dbManager);
     try {
       transferContract = contract.unpack(TransferContract.class);
+      amount = transferContract.getAmount();
+      toAddress = transferContract.getToAddress().toByteArray();
+      ownerAddress = transferContract.getOwnerAddress().toByteArray();
+      fee = calcFee();
     } catch (InvalidProtocolBufferException e) {
       logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
     }
-    amount = transferContract.getAmount();
-    toAddress = transferContract.getToAddress().toByteArray();
-    ownerAddress = transferContract.getOwnerAddress().toByteArray();
-    fee = calcFee();
   }
 
   @Override
@@ -56,11 +58,15 @@ public class TransferActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
       if (transferContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [TransferContract],real type[" + contract
                 .getClass() + "]");
       }
+
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }

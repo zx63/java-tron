@@ -23,16 +23,27 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 @Slf4j
 public class VoteWitnessActuator extends AbstractActuator {
 
+  VoteWitnessContract voteContract;
+  byte[] ownerAddress;
+  long fee;
+
   VoteWitnessActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      voteContract = contract.unpack(VoteWitnessContract.class);
+      ownerAddress = voteContract.getOwnerAddress().toByteArray();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e) {
+      logger.error(e.getMessage(), e);
+    }
   }
 
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
     try {
-      VoteWitnessContract voteContract = contract.unpack(VoteWitnessContract.class);
       countVoteAccount(voteContract);
       ret.setStatus(fee, code.SUCESS);
     } catch (Exception e) {
@@ -46,21 +57,22 @@ public class VoteWitnessActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      if (!contract.is(VoteWitnessContract.class)) {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (voteContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [VoteWitnessContract],real type[" + contract
                 .getClass() + "]");
       }
 
-      VoteWitnessContract contract = this.contract.unpack(VoteWitnessContract.class);
-      byte[] ownerAddress = contract.getOwnerAddress().toByteArray();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
       String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
 
       AccountStore accountStore = dbManager.getAccountStore();
-      Iterator<Vote> iterator = contract.getVotesList().iterator();
+      Iterator<Vote> iterator = voteContract.getVotesList().iterator();
       WitnessStore witnessStore = dbManager.getWitnessStore();
       while (iterator.hasNext()) {
         Vote vote = iterator.next();
@@ -82,7 +94,7 @@ public class VoteWitnessActuator extends AbstractActuator {
             "Account[" + readableOwnerAddress + "] not exists");
       }
 
-      if (contract.getVotesCount() > dbManager.getDynamicPropertiesStore().getMaxVoteNumber()) {
+      if (voteContract.getVotesCount() > dbManager.getDynamicPropertiesStore().getMaxVoteNumber()) {
         throw new ContractValidateException(
             "VoteNumber more than maxVoteNumber[30]");
       }
@@ -90,7 +102,7 @@ public class VoteWitnessActuator extends AbstractActuator {
       long share = ownerAccount.getShare();
 
       Long sum = 0L;
-      for (Vote vote : contract.getVotesList()) {
+      for (Vote vote : voteContract.getVotesList()) {
         sum = LongMath.checkedAdd(sum, vote.getVoteCount());
       }
 

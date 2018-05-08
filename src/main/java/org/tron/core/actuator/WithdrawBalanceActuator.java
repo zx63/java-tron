@@ -18,20 +18,28 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 
 @Slf4j
 public class WithdrawBalanceActuator extends AbstractActuator {
+  WithdrawBalanceContract withdrawBalanceContract;
+  byte[] ownerAddress;
+  long fee;
 
   WithdrawBalanceActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      withdrawBalanceContract = this.contract.unpack(WithdrawBalanceContract.class);
+      ownerAddress = withdrawBalanceContract.getOwnerAddress().toByteArray();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
+    }
   }
 
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
     try {
-      WithdrawBalanceContract withdrawBalanceContract = contract
-          .unpack(WithdrawBalanceContract.class);
       AccountStore accountStore = dbManager.getAccountStore();
-      byte[] ownerAddress = withdrawBalanceContract.getOwnerAddress().toByteArray();
       AccountCapsule accountCapsule = accountStore.get(ownerAddress);
       long oldBalance = accountCapsule.getBalance();
       long allowance = accountCapsule.getAllowance();
@@ -56,15 +64,15 @@ public class WithdrawBalanceActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      if (!contract.is(WithdrawBalanceContract.class)) {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (withdrawBalanceContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [WithdrawBalanceContract],real type[" + contract
                 .getClass() + "]");
       }
 
-      WithdrawBalanceContract withdrawBalanceContract = this.contract
-          .unpack(WithdrawBalanceContract.class);
-      byte[] ownerAddress = withdrawBalanceContract.getOwnerAddress().toByteArray();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }

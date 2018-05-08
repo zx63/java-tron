@@ -28,7 +28,6 @@ import org.tron.core.capsule.TransactionResultCapsule;
 import org.tron.core.config.Parameter.ChainConstant;
 import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
-import org.tron.core.exception.BalanceInsufficientException;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Contract.AssetIssueContract;
@@ -37,46 +36,48 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 @Slf4j
 public class AssetIssueActuator extends AbstractActuator {
 
+  AssetIssueContract assetIssueContract;
+  byte[] ownerAddress;
+  byte[] assetName;
+  long totalSupply;
+  long trxNum;
+  long num;
+  long fee;
+
   AssetIssueActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      assetIssueContract = contract.unpack(AssetIssueContract.class);
+      ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
+      assetName = assetIssueContract.getName().toByteArray();
+      totalSupply = assetIssueContract.getTotalSupply();
+      trxNum = assetIssueContract.getTrxNum();
+      num = assetIssueContract.getNum();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
+    }
   }
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
     try {
-      if (!this.contract.is(AssetIssueContract.class)) {
-        throw new ContractExeException();
-      }
-
-      if (dbManager == null) {
-        throw new ContractExeException();
-      }
-      AssetIssueContract assetIssueContract = contract.unpack(AssetIssueContract.class);
       AssetIssueCapsule assetIssueCapsule = new AssetIssueCapsule(assetIssueContract);
-
-      byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
-      byte[] assetName = assetIssueContract.getName().toByteArray();
 
       dbManager.getAssetIssueStore().put(assetName, assetIssueCapsule);
       dbManager.adjustBalance(ownerAddress, -fee);
-      ret.setStatus(fee, code.SUCESS);
 
       AccountStore accountStore = dbManager.getAccountStore();
       dbManager.adjustBalance(accountStore.getBlackhole().getAddress().toByteArray(),
           fee);//send to blackhole
       AccountCapsule accountCapsule = accountStore.get(ownerAddress);
 
-      accountCapsule.addAsset(ByteArray.toStr(assetName), assetIssueContract.getTotalSupply());
-
+      accountCapsule.addAsset(ByteArray.toStr(assetName), totalSupply);
       accountStore.put(ownerAddress, accountCapsule);
-    } catch (InvalidProtocolBufferException e) {
-      ret.setStatus(fee, code.FAILED);
-      throw new ContractExeException(e.getMessage());
-    } catch (BalanceInsufficientException e) {
-      ret.setStatus(fee, code.FAILED);
-      throw new ContractExeException(e.getMessage());
-    } catch (ArithmeticException e) {
+      ret.setStatus(fee, code.SUCESS);
+    } catch (Exception e) {
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
     }
@@ -85,29 +86,30 @@ public class AssetIssueActuator extends AbstractActuator {
 
   @Override
   public boolean validate() throws ContractValidateException {
-    if (!this.contract.is(AssetIssueContract.class)) {
-      throw new ContractValidateException();
-    }
-
     try {
-      final AssetIssueContract assetIssueContract = this.contract.unpack(AssetIssueContract.class);
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (assetIssueContract == null) {
+        throw new ContractValidateException(
+            "contract type error,expected type [AssetIssueContract],real type[" + contract
+                .getClass() + "]");
+      }
 
-      byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
-      ByteString assetName = assetIssueContract.getName();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
       Preconditions.checkNotNull(assetName, "name is null");
 
-      if (assetIssueContract.getTotalSupply() <= 0) {
+      if (totalSupply <= 0) {
         throw new ContractValidateException("TotalSupply must greater than 0!");
       }
 
-      if (assetIssueContract.getTrxNum() <= 0) {
+      if (trxNum <= 0) {
         throw new ContractValidateException("TrxNum must greater than 0!");
       }
 
-      if (assetIssueContract.getNum() <= 0) {
+      if (num <= 0) {
         throw new ContractValidateException("Num must greater than 0!");
       }
 
@@ -116,16 +118,15 @@ public class AssetIssueActuator extends AbstractActuator {
         throw new ContractValidateException("Account not exists");
       }
 
-      if (this.dbManager.getAssetIssueStore().get(assetName.toByteArray())
-          != null) {
+      if (this.dbManager.getAssetIssueStore().get(assetName) != null) {
         throw new ContractValidateException("Token exists");
       }
 
-      if (accountCapsule.getBalance() < calcFee()) {
+      if (accountCapsule.getBalance() < fee) {
         throw new ContractValidateException("No enough blance for fee!");
       }
 
-    } catch (InvalidProtocolBufferException e) {
+    } catch (Exception e) {
       throw new ContractValidateException(e.getMessage());
     }
 

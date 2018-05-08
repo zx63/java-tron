@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import java.nio.charset.Charset;
 import lombok.extern.slf4j.Slf4j;
 import org.tron.common.utils.StringUtil;
 import org.tron.core.Wallet;
@@ -22,23 +23,27 @@ public class WitnessCreateActuator extends AbstractActuator {
 
   WitnessCreateContract witnessCreateContract;
   byte[] ownerAddress;
+  byte[] url;
   long fee;
 
   WitnessCreateActuator(final Any contract, final Manager dbManager) {
     super(contract, dbManager);
     try {
       witnessCreateContract = contract.unpack(WitnessCreateContract.class);
+      ownerAddress = witnessCreateContract.getOwnerAddress().toByteArray();
+      url = witnessCreateContract.getUrl().toByteArray();
+      fee = calcFee();
     } catch (InvalidProtocolBufferException e) {
       logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
     }
-    ownerAddress = witnessCreateContract.getOwnerAddress().toByteArray();
-    fee = calcFee();
   }
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
     try {
-      this.createWitness(witnessCreateContract);
+      this.createWitness();
       ret.setStatus(fee, code.SUCESS);
     } catch (final Exception e) {
       logger.debug(e.getMessage(), e);
@@ -51,6 +56,14 @@ public class WitnessCreateActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (witnessCreateContract == null) {
+        throw new ContractValidateException(
+            "contract type error,expected type [WitnessCreateContract],real type[" + contract
+                .getClass() + "]");
+      }
       String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
 
       if (!Wallet.addressValid(ownerAddress)) {
@@ -88,10 +101,10 @@ public class WitnessCreateActuator extends AbstractActuator {
     return 0;
   }
 
-  private void createWitness(final WitnessCreateContract witnessCreateContract) {
+  private void createWitness() {
     //Create Witness by witnessCreateContract
-    final WitnessCapsule witnessCapsule = new WitnessCapsule(
-        witnessCreateContract.getOwnerAddress(), 0, witnessCreateContract.getUrl().toStringUtf8());
+    final WitnessCapsule witnessCapsule = new WitnessCapsule(ByteString.copyFrom(ownerAddress), 0,
+        new String(url, Charset.forName("UTF-8")));
 
     logger.debug("createWitness,address[{}]", witnessCapsule.createReadableString());
     this.dbManager.getWitnessStore().put(ownerAddress, witnessCapsule);

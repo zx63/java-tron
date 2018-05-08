@@ -22,20 +22,29 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 @Slf4j
 public class UnfreezeBalanceActuator extends AbstractActuator {
 
+  UnfreezeBalanceContract unfreezeBalanceContract;
+  byte[] ownerAddress;
+  long fee;
+
   UnfreezeBalanceActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      unfreezeBalanceContract = contract.unpack(UnfreezeBalanceContract.class);
+      ownerAddress = unfreezeBalanceContract.getOwnerAddress().toByteArray();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e) {
+      logger.error(e.getMessage(), e);
+    }
   }
 
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
     try {
-      UnfreezeBalanceContract unfreezeBalanceContract = contract
-          .unpack(UnfreezeBalanceContract.class);
       AccountStore accountStore = dbManager.getAccountStore();
-      AccountCapsule accountCapsule = accountStore
-          .get(unfreezeBalanceContract.getOwnerAddress().toByteArray());
+      AccountCapsule accountCapsule = accountStore.get(ownerAddress);
       long oldBalance = accountCapsule.getBalance();
       long unfreezeBalance = 0L;
       List<Frozen> frozenList = Lists.newArrayList();
@@ -67,15 +76,15 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      if (!contract.is(UnfreezeBalanceContract.class)) {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (unfreezeBalanceContract == null){
         throw new ContractValidateException(
             "contract type error,expected type [UnfreezeBalanceContract],real type[" + contract
                 .getClass() + "]");
       }
 
-      UnfreezeBalanceContract unfreezeBalanceContract = this.contract
-          .unpack(UnfreezeBalanceContract.class);
-      byte[] ownerAddress = unfreezeBalanceContract.getOwnerAddress().toByteArray();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
@@ -97,7 +106,6 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
       if (allowedUnfreezeCount <= 0) {
         throw new ContractValidateException("It's not time to unfreeze.");
       }
-
 
     } catch (Exception ex) {
       ex.printStackTrace();

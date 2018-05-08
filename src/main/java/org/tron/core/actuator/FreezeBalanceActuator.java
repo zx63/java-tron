@@ -19,27 +19,39 @@ import org.tron.protos.Protocol.Transaction.Result.code;
 @Slf4j
 public class FreezeBalanceActuator extends AbstractActuator {
 
+  FreezeBalanceContract freezeBalanceContract;
+  byte[] ownerAddress;
+  long frozenBalance;
+  long frozenDuration;
+  long fee;
+
   FreezeBalanceActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      freezeBalanceContract = contract.unpack(FreezeBalanceContract.class);
+      ownerAddress = freezeBalanceContract.getOwnerAddress().toByteArray();
+      frozenBalance = freezeBalanceContract.getFrozenBalance();
+      frozenDuration = freezeBalanceContract.getFrozenDuration();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e){
+      logger.error(e.getMessage(), e);
+    }
   }
 
 
   @Override
   public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
-    long fee = calcFee();
     try {
-      FreezeBalanceContract freezeBalanceContract = contract.unpack(FreezeBalanceContract.class);
-
       AccountStore accountStore = dbManager.getAccountStore();
-      AccountCapsule accountCapsule = accountStore.get(freezeBalanceContract.getOwnerAddress().toByteArray());
+      AccountCapsule accountCapsule = accountStore.get(ownerAddress);
 
       long now = System.currentTimeMillis();
-      long duration = freezeBalanceContract.getFrozenDuration() * 24 * 3600 * 1000L;
+      long duration = frozenDuration * 24 * 3600 * 1000L;
 
-      long newBandwidth = accountCapsule.getBandwidth()
-          + calculateBandwidth(freezeBalanceContract);
+      long newBandwidth = accountCapsule.getBandwidth() + calculateBandwidth();
 
-      long frozenBalance = freezeBalanceContract.getFrozenBalance();
       long newBalance = accountCapsule.getBalance() - frozenBalance;
 
       long nowFrozenBalance = accountCapsule.getFrozenBalance();
@@ -68,10 +80,10 @@ public class FreezeBalanceActuator extends AbstractActuator {
         );
       }
 
-      accountStore.put(accountCapsule.createDbKey(), accountCapsule);
+      accountStore.put(ownerAddress, accountCapsule);
 
       ret.setStatus(fee, code.SUCESS);
-    } catch (InvalidProtocolBufferException e) {
+    } catch (Exception e) {
       logger.debug(e.getMessage(), e);
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
@@ -79,25 +91,23 @@ public class FreezeBalanceActuator extends AbstractActuator {
     return true;
   }
 
-  private long calculateBandwidth(FreezeBalanceContract freezeBalanceContract) {
-
-    return freezeBalanceContract.getFrozenBalance()
-        * freezeBalanceContract.getFrozenDuration()
-        * dbManager.getDynamicPropertiesStore().getBandwidthPerCoinday();
+  private long calculateBandwidth() {
+    return frozenBalance * frozenDuration * dbManager.getDynamicPropertiesStore()
+        .getBandwidthPerCoinday();
   }
 
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      if (!contract.is(FreezeBalanceContract.class)) {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (freezeBalanceContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [FreezeBalanceContract],real type[" + contract
                 .getClass() + "]");
       }
 
-      FreezeBalanceContract freezeBalanceContract = this.contract
-          .unpack(FreezeBalanceContract.class);
-      byte[] ownerAddress = freezeBalanceContract.getOwnerAddress().toByteArray();
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
@@ -109,7 +119,6 @@ public class FreezeBalanceActuator extends AbstractActuator {
             "Account[" + readableOwnerAddress + "] not exists");
       }
 
-      long frozenBalance = freezeBalanceContract.getFrozenBalance();
       if (frozenBalance < 1_000_000L) {
         throw new ContractValidateException("frozenBalance must be more than 1TRX");
       }
@@ -123,7 +132,6 @@ public class FreezeBalanceActuator extends AbstractActuator {
 //        throw new ContractValidateException("max frozen number is: " + maxFrozenNumber);
 //      }
 
-      long frozenDuration = freezeBalanceContract.getFrozenDuration();
       long minFrozenTime = dbManager.getDynamicPropertiesStore().getMinFrozenTime();
       long maxFrozenTime = dbManager.getDynamicPropertiesStore().getMaxFrozenTime();
 

@@ -13,52 +13,67 @@ import org.tron.core.db.Manager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.protos.Contract.AccountUpdateContract;
+import org.tron.protos.Protocol.Transaction.Result.code;
 
 @Slf4j
 public class UpdateAccountActuator extends AbstractActuator {
 
+  AccountUpdateContract accountUpdateContract;
+  byte[] accountName;
+  byte[] ownerAddress;
+  long fee;
+
   UpdateAccountActuator(Any contract, Manager dbManager) {
     super(contract, dbManager);
+    try {
+      accountUpdateContract = contract.unpack(AccountUpdateContract.class);
+      accountName = accountUpdateContract.getAccountName().toByteArray();
+      ownerAddress = accountUpdateContract.getOwnerAddress().toByteArray();
+      fee = calcFee();
+    } catch (InvalidProtocolBufferException e) {
+      logger.error(e.getMessage(), e);
+    } catch (Exception e) {
+      logger.error(e.getMessage(), e);
+    }
   }
 
   @Override
-  public boolean execute(TransactionResultCapsule result) throws ContractExeException {
-    long fee = calcFee();
+  public boolean execute(TransactionResultCapsule ret) throws ContractExeException {
     try {
-      AccountUpdateContract accountUpdateContract = contract.unpack(AccountUpdateContract.class);
-      byte[] ownerAddress = accountUpdateContract.getOwnerAddress().toByteArray();
       AccountStore accountStore = dbManager.getAccountStore();
       AccountCapsule account = accountStore.get(ownerAddress);
 
-      account.setAccountName(accountUpdateContract.getAccountName().toByteArray());
+      account.setAccountName(accountName);
       accountStore.put(ownerAddress, account);
-      return true;
+      ret.setStatus(fee, code.SUCESS);
     } catch (Exception e) {
       logger.debug(e.getMessage(), e);
+      ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
     }
+    return true;
   }
 
   @Override
   public boolean validate() throws ContractValidateException {
     try {
-      if (!contract.is(AccountUpdateContract.class)) {
+      if (this.dbManager == null) {
+        throw new ContractValidateException("No dbManager!");
+      }
+      if (accountUpdateContract == null) {
         throw new ContractValidateException(
             "contract type error,expected type [AccountUpdateContract],real type[" + contract
                 .getClass() + "]");
       }
 
-      AccountUpdateContract accountUpdateContract = this.contract
-          .unpack(AccountUpdateContract.class);
       //ToDo check accountName
-      Preconditions.checkNotNull(accountUpdateContract.getAccountName(), "AccountName is null");
-      byte[] ownerAddress = accountUpdateContract.getOwnerAddress().toByteArray();
+      Preconditions.checkNotNull(accountName, "AccountName is null");
       if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
 
-      if (dbManager.getAccountStore().has(ownerAddress)) {
-        throw new ContractValidateException("Account has existed");
+      if (!dbManager.getAccountStore().has(ownerAddress)) {
+        throw new ContractValidateException("Account has not existed");
       }
     } catch (Exception ex) {
       ex.printStackTrace();
