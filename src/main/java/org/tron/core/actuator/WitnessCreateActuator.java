@@ -50,31 +50,30 @@ public class WitnessCreateActuator extends AbstractActuator {
       }
 
       final WitnessCreateContract contract = this.contract.unpack(WitnessCreateContract.class);
-      String readableOwnerAddress = StringUtil.createReadableString(contract.getOwnerAddress());
+      byte[] ownerAddress = contract.getOwnerAddress().toByteArray();
+      String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
 
-      if (!Wallet.addressValid(contract.getOwnerAddress().toByteArray())) {
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
-      Preconditions.checkArgument(
-          this.dbManager.getAccountStore().has(contract.getOwnerAddress().toByteArray()),
-          "account[" + readableOwnerAddress + "] not exists");
 
-      AccountCapsule accountCapsule = this.dbManager.getAccountStore()
-          .get(contract.getOwnerAddress().toByteArray());
-
-      Preconditions.checkArgument(accountCapsule.getBalance() >= WitnessCapsule.MIN_BALANCE,
+      AccountCapsule accountCapsule = this.dbManager.getAccountStore().get(ownerAddress);
+      if (accountCapsule == null) {
+        throw new ContractValidateException("account[" + readableOwnerAddress + "] not exists");
+      }
+      long balance = accountCapsule.getBalance();
+      Preconditions.checkArgument(balance >= WitnessCapsule.MIN_BALANCE,
           "witnessAccount  has balance["
-              + accountCapsule.getBalance() + "] < MIN_BALANCE[" + WitnessCapsule.MIN_BALANCE
+              + balance + "] < MIN_BALANCE[" + WitnessCapsule.MIN_BALANCE
               + "]");
 
       Preconditions.checkArgument(
-          !this.dbManager.getWitnessStore().has(contract.getOwnerAddress().toByteArray()),
+          !this.dbManager.getWitnessStore().has(ownerAddress),
           "Witness[" + readableOwnerAddress + "] has existed");
 
-      Preconditions.checkArgument(
-          accountCapsule.getBalance() >= dbManager.getDynamicPropertiesStore()
-              .getAccountUpgradeCost(),
-          "balance < AccountUpgradeCost");
+      Preconditions
+          .checkArgument(balance >= dbManager.getDynamicPropertiesStore().getAccountUpgradeCost(),
+              "balance < AccountUpgradeCost");
 
     } catch (final Exception ex) {
       ex.printStackTrace();
@@ -95,6 +94,7 @@ public class WitnessCreateActuator extends AbstractActuator {
 
   private void createWitness(final WitnessCreateContract witnessCreateContract) {
     //Create Witness by witnessCreateContract
+
     final WitnessCapsule witnessCapsule = new WitnessCapsule(
         witnessCreateContract.getOwnerAddress(), 0, witnessCreateContract.getUrl().toStringUtf8());
 
@@ -102,12 +102,9 @@ public class WitnessCreateActuator extends AbstractActuator {
     this.dbManager.getWitnessStore().put(witnessCapsule.createDbKey(), witnessCapsule);
 
     try {
-      dbManager.adjustBalance(witnessCreateContract.getOwnerAddress().toByteArray(),
-          -dbManager.getDynamicPropertiesStore().getAccountUpgradeCost());
-
-      dbManager.adjustBalance(this.dbManager.getAccountStore().getBlackhole().createDbKey(),
-          +dbManager.getDynamicPropertiesStore().getAccountUpgradeCost());
-
+      int cost = dbManager.getDynamicPropertiesStore().getAccountUpgradeCost();
+      dbManager.adjustBalance(witnessCreateContract.getOwnerAddress().toByteArray(), -cost);
+      dbManager.adjustBalance(this.dbManager.getAccountStore().getBlackhole().createDbKey(), +cost);
     } catch (BalanceInsufficientException e) {
       throw new RuntimeException(e);
     }
