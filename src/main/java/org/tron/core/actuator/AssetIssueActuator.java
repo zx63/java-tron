@@ -26,6 +26,7 @@ import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.AssetIssueCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
 import org.tron.core.config.Parameter.ChainConstant;
+import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.BalanceInsufficientException;
 import org.tron.core.exception.ContractExeException;
@@ -53,21 +54,22 @@ public class AssetIssueActuator extends AbstractActuator {
       }
       AssetIssueContract assetIssueContract = contract.unpack(AssetIssueContract.class);
       AssetIssueCapsule assetIssueCapsule = new AssetIssueCapsule(assetIssueContract);
-      dbManager.getAssetIssueStore()
-          .put(assetIssueCapsule.getName().toByteArray(), assetIssueCapsule);
 
-      dbManager.adjustBalance(assetIssueContract.getOwnerAddress().toByteArray(), -calcFee());
+      byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
+      byte[] assetName = assetIssueContract.getName().toByteArray();
+
+      dbManager.getAssetIssueStore().put(assetName, assetIssueCapsule);
+      dbManager.adjustBalance(ownerAddress, -fee);
       ret.setStatus(fee, code.SUCESS);
-      dbManager.adjustBalance(dbManager.getAccountStore().getBlackhole().getAddress().toByteArray(),
-          calcFee());//send to blackhole
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(assetIssueContract.getOwnerAddress().toByteArray());
 
-      accountCapsule.addAsset(ByteArray.toStr(assetIssueContract.getName().toByteArray()),
-          assetIssueContract.getTotalSupply());
+      AccountStore accountStore = dbManager.getAccountStore();
+      dbManager.adjustBalance(accountStore.getBlackhole().getAddress().toByteArray(),
+          fee);//send to blackhole
+      AccountCapsule accountCapsule = accountStore.get(ownerAddress);
 
-      dbManager.getAccountStore()
-          .put(assetIssueContract.getOwnerAddress().toByteArray(), accountCapsule);
+      accountCapsule.addAsset(ByteArray.toStr(assetName), assetIssueContract.getTotalSupply());
+
+      accountStore.put(ownerAddress, accountCapsule);
     } catch (InvalidProtocolBufferException e) {
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
@@ -90,10 +92,12 @@ public class AssetIssueActuator extends AbstractActuator {
     try {
       final AssetIssueContract assetIssueContract = this.contract.unpack(AssetIssueContract.class);
 
-      if (!Wallet.addressValid(assetIssueContract.getOwnerAddress().toByteArray())) {
+      byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
+      ByteString assetName = assetIssueContract.getName();
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate ownerAddress");
       }
-      Preconditions.checkNotNull(assetIssueContract.getName(), "name is null");
+      Preconditions.checkNotNull(assetName, "name is null");
 
       if (assetIssueContract.getTotalSupply() <= 0) {
         throw new ContractValidateException("TotalSupply must greater than 0!");
@@ -107,13 +111,12 @@ public class AssetIssueActuator extends AbstractActuator {
         throw new ContractValidateException("Num must greater than 0!");
       }
 
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(assetIssueContract.getOwnerAddress().toByteArray());
+      AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
       if (accountCapsule == null) {
         throw new ContractValidateException("Account not exists");
       }
 
-      if (this.dbManager.getAssetIssueStore().get(assetIssueContract.getName().toByteArray())
+      if (this.dbManager.getAssetIssueStore().get(assetName.toByteArray())
           != null) {
         throw new ContractValidateException("Token exists");
       }
