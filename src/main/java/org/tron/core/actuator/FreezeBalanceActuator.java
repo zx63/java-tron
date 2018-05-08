@@ -8,6 +8,7 @@ import org.tron.common.utils.StringUtil;
 import org.tron.core.Wallet;
 import org.tron.core.capsule.AccountCapsule;
 import org.tron.core.capsule.TransactionResultCapsule;
+import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
@@ -29,18 +30,20 @@ public class FreezeBalanceActuator extends AbstractActuator {
     try {
       FreezeBalanceContract freezeBalanceContract = contract.unpack(FreezeBalanceContract.class);
 
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(freezeBalanceContract.getOwnerAddress().toByteArray());
+      AccountStore accountStore = dbManager.getAccountStore();
+      AccountCapsule accountCapsule = accountStore.get(freezeBalanceContract.getOwnerAddress().toByteArray());
 
       long now = System.currentTimeMillis();
       long duration = freezeBalanceContract.getFrozenDuration() * 24 * 3600 * 1000L;
 
       long newBandwidth = accountCapsule.getBandwidth()
           + calculateBandwidth(freezeBalanceContract);
-      long newBalance = accountCapsule.getBalance() - freezeBalanceContract.getFrozenBalance();
+
+      long frozenBalance = freezeBalanceContract.getFrozenBalance();
+      long newBalance = accountCapsule.getBalance() - frozenBalance;
 
       long nowFrozenBalance = accountCapsule.getFrozenBalance();
-      long newFrozenBalance = freezeBalanceContract.getFrozenBalance() + nowFrozenBalance;
+      long newFrozenBalance = frozenBalance + nowFrozenBalance;
 
       Frozen newFrozen = Frozen.newBuilder()
           .setFrozenBalance(newFrozenBalance)
@@ -55,7 +58,7 @@ public class FreezeBalanceActuator extends AbstractActuator {
             .setBalance(newBalance)
             .setBandwidth(newBandwidth)
             .build());
-      }else {
+      } else {
         assert frozenCount == 1;
         accountCapsule.setInstance(accountCapsule.getInstance().toBuilder()
             .setFrozen(0, newFrozen)
@@ -65,7 +68,7 @@ public class FreezeBalanceActuator extends AbstractActuator {
         );
       }
 
-      dbManager.getAccountStore().put(accountCapsule.createDbKey(), accountCapsule);
+      accountStore.put(accountCapsule.createDbKey(), accountCapsule);
 
       ret.setStatus(fee, code.SUCESS);
     } catch (InvalidProtocolBufferException e) {
@@ -94,27 +97,23 @@ public class FreezeBalanceActuator extends AbstractActuator {
 
       FreezeBalanceContract freezeBalanceContract = this.contract
           .unpack(FreezeBalanceContract.class);
-      ByteString ownerAddress = freezeBalanceContract.getOwnerAddress();
-      if (!Wallet.addressValid(ownerAddress.toByteArray())) {
+      byte[] ownerAddress = freezeBalanceContract.getOwnerAddress().toByteArray();
+      if (!Wallet.addressValid(ownerAddress)) {
         throw new ContractValidateException("Invalidate address");
       }
 
-      if (!dbManager.getAccountStore().has(ownerAddress.toByteArray())) {
+      AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
+      if (accountCapsule == null) {
         String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
         throw new ContractValidateException(
             "Account[" + readableOwnerAddress + "] not exists");
       }
 
       long frozenBalance = freezeBalanceContract.getFrozenBalance();
-      if (frozenBalance <= 0) {
-        throw new ContractValidateException("frozenBalance must be positive");
-      }
       if (frozenBalance < 1_000_000L) {
         throw new ContractValidateException("frozenBalance must be more than 1TRX");
       }
 
-      AccountCapsule accountCapsule = dbManager.getAccountStore()
-          .get(ownerAddress.toByteArray());
       if (frozenBalance > accountCapsule.getBalance()) {
         throw new ContractValidateException("frozenBalance must be less than accountBalance");
       }

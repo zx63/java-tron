@@ -138,7 +138,7 @@ public class FreezeBalanceActuatorTest {
 
     } catch (ContractValidateException e) {
       Assert.assertTrue(e instanceof ContractValidateException);
-      Assert.assertEquals("frozenBalance must be positive", e.getMessage());
+      Assert.assertEquals("frozenBalance must be more than 1TRX", e.getMessage());
     } catch (ContractExeException e) {
       Assert.assertFalse(e instanceof ContractExeException);
     }
