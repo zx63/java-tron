@@ -180,6 +180,10 @@ public class Args {
 
   @Getter
   @Setter
+  private int grpcWorkThreadNum;
+
+  @Getter
+  @Setter
   @Parameter(names = {"--trust-node"}, description = "Trust node addr")
   private String trustNodeAddr;
 
@@ -218,6 +222,7 @@ public class Args {
     INSTANCE.p2pNodeId = "";
     INSTANCE.solidityNode = false;
     INSTANCE.trustNodeAddr = "";
+    INSTANCE.grpcWorkThreadNum = 0;
   }
 
   /**

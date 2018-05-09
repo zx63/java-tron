@@ -419,7 +419,7 @@ public class Manager {
   public boolean pushTransactions(final TransactionCapsule trx)
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       ValidateBandwidthException, DupTransactionException, TaposException {
-    logger.info("push transaction");
+    logger.info("push transaction " + Thread.currentThread().getId());
     logger.info("head TrxLeft[" + pendingTransactions.size() + "]");
 
     if (getTransactionStore().get(trx.getTransactionId().getBytes()) != null) {
