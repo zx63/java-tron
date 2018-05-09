@@ -434,22 +434,25 @@ public class Manager {
     //validateTapos(trx);
 
     //validateFreq(trx);
-    synchronized (this) {
-      if (!dialog.valid()) {
-        dialog.setValue(revokingStore.buildDialog());
-      }
-
-      try (RevokingStore.Dialog tmpDialog = revokingStore.buildDialog()) {
-        processTransaction(trx);
-        pendingTransactions.add(trx);
-        tmpDialog.merge();
-      } catch (RevokingStoreIllegalStateException e) {
-        logger.debug(e.getMessage(), e);
-      }
-    }
+    tryProcessTransaction(trx);
 
     logger.info("tail TrxLeft[" + pendingTransactions.size() + "]");
     return true;
+  }
+
+  private synchronized void tryProcessTransaction(TransactionCapsule trx)
+      throws ValidateSignatureException, ContractValidateException, ContractExeException, ValidateBandwidthException {
+    if (!dialog.valid()) {
+      dialog.setValue(revokingStore.buildDialog());
+    }
+
+    try (Dialog tmpDialog = revokingStore.buildDialog()) {
+      processTransaction(trx);
+      pendingTransactions.add(trx);
+      tmpDialog.merge();
+    } catch (RevokingStoreIllegalStateException e) {
+      logger.debug(e.getMessage(), e);
+    }
   }
 
 
