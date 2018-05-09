@@ -180,7 +180,8 @@ public class Args {
 
   @Getter
   @Setter
-  private int grpcWorkThreadNum;
+  @Parameter(names = {"--grpc-thread-num"}, description = "Num of grpc thread")
+  private int grpcThreadNum;
 
   @Getter
   @Setter
@@ -222,7 +223,7 @@ public class Args {
     INSTANCE.p2pNodeId = "";
     INSTANCE.solidityNode = false;
     INSTANCE.trustNodeAddr = "";
-    INSTANCE.grpcWorkThreadNum = 0;
+    INSTANCE.grpcThreadNum = 0;
   }
 
   /**
