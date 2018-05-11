@@ -443,7 +443,7 @@ public class Manager {
       throw new ValidateSignatureException("trans sig validate failed");
     }
 
-    //validateTapos(trx);
+    validateTapos(trx);
 
     //validateFreq(trx);
     tryProcessTransaction(trx);
