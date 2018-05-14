@@ -137,7 +137,7 @@ public class TransactionCapsule implements ProtoCapsule<Transaction> {
   }
 
   public void setResult(TransactionResultCapsule transactionResultCapsule) {
-    //this.getInstance().toBuilder(). (transactionResultCapsule.getInstance());
+    this.getInstance().toBuilder().addRet(transactionResultCapsule.getInstance()).build();
   }
 
   public void setReference(long blockNum, byte[] blockHash) {
@@ -149,10 +149,18 @@ public class TransactionCapsule implements ProtoCapsule<Transaction> {
     this.transaction = this.transaction.toBuilder().setRawData(rawData).build();
   }
 
+  /**
+   *
+   * @param expiration must be in milliseconds format
+   */
   public void setExpiration(long expiration) {
     Transaction.raw rawData = this.transaction.getRawData().toBuilder().setExpiration(expiration)
         .build();
     this.transaction = this.transaction.toBuilder().setRawData(rawData).build();
+  }
+
+  public long getExpiration(){
+    return transaction.getRawData().getExpiration();
   }
 
   @Deprecated
