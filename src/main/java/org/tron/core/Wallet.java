@@ -48,7 +48,6 @@ import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.capsule.WitnessCapsule;
 import org.tron.core.db.AccountStore;
 import org.tron.core.db.Manager;
-import org.tron.core.db.PendingManager;
 import org.tron.core.exception.ContractExeException;
 import org.tron.core.exception.ContractValidateException;
 import org.tron.core.exception.DupTransactionException;
@@ -71,14 +70,14 @@ import org.tron.protos.Protocol.Transaction;
 @Component
 public class Wallet {
 
+  private static String addressPreFixString = Constant.ADD_PRE_FIX_STRING_TESTNET;  //default testnet
+  private static byte addressPreFixByte = Constant.ADD_PRE_FIX_BYTE_TESTNET;
   @Getter
   private final ECKey ecKey;
   @Autowired
   private NodeImpl p2pNode;
   @Autowired
   private Manager dbManager;
-  private static String addressPreFixString = Constant.ADD_PRE_FIX_STRING_TESTNET;  //default testnet
-  private static byte addressPreFixByte = Constant.ADD_PRE_FIX_BYTE_TESTNET;
 
   /**
    * Creates a new Wallet with a random ECKey.
@@ -93,10 +92,6 @@ public class Wallet {
   public Wallet(final ECKey ecKey) {
     this.ecKey = ecKey;
     logger.info("wallet address: {}", ByteArray.toHexString(this.ecKey.getAddress()));
-  }
-
-  public byte[] getAddress() {
-    return ecKey.getAddress();
   }
 
   public static String getAddressPreFixString() {
@@ -181,6 +176,9 @@ public class Wallet {
     return address;
   }
 
+  public byte[] getAddress() {
+    return ecKey.getAddress();
+  }
 
   public Account getBalance(Account account) {
     AccountStore accountStore = dbManager.getAccountStore();
@@ -213,16 +211,17 @@ public class Wallet {
     TransactionCapsule trx = new TransactionCapsule(signaturedTransaction);
     try {
       Message message = new TransactionMessage(signaturedTransaction);
-      if (dbManager.isTooManyPending()) {
-        logger.debug(
-            "Manager is busy, pending transaction count:{}, discard the new coming transaction",
-            (dbManager.getPendingTransactions().size() + PendingManager.getTmpTransactions()
-                .size()));
-        return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
-      } else if (dbManager.isGeneratingBlock()) {
-        logger.debug("Manager is generating block, discard the new coming transaction");
-        return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
-      } else {
+//      if (dbManager.isTooManyPending()) {
+//        logger.debug(
+//            "Manager is busy, pending transaction count:{}, discard the new coming transaction",
+//            (dbManager.getPendingTransactions().size() + PendingManager.getTmpTransactions()
+//                .size()));
+//        return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
+//      } else if (dbManager.isGeneratingBlock()) {
+//        logger.debug("Manager is generating block, discard the new coming transaction");
+//        return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
+//      } else
+      {
         dbManager.pushTransactions(trx);
         p2pNode.broadcast(message);
         return builder.setResult(true).setCode(response_code.SUCCESS).build();
