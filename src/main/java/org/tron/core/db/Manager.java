@@ -935,6 +935,9 @@ public class Manager {
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       UnLinkedBlockException, ValidateScheduleException, ValidateBandwidthException {
 
+    long startTime = System.currentTimeMillis();
+    System.out.println("generate block start time: " + startTime);
+
     final long timestamp = this.dynamicPropertiesStore.getLatestBlockHeaderTimestamp();
     final long number = this.dynamicPropertiesStore.getLatestBlockHeaderNumber();
     final Sha256Hash preHash = this.dynamicPropertiesStore.getLatestBlockHeaderHash();
@@ -963,7 +966,7 @@ public class Manager {
         continue;
       }
 
-      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
+      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.45) {
         logger.debug("Processing transaction time exceeds the 50% producing time。");
         break;
       }
@@ -999,6 +1002,9 @@ public class Manager {
       }
     }
 
+    long loopEndTime = System.currentTimeMillis();
+    System.out.println("generate block loop end time: " + (loopEndTime - startTime));
+
     dialog.reset();
 
     if (postponedTrxCount > 0) {
@@ -1012,6 +1018,10 @@ public class Manager {
     blockCapsule.sign(privateKey);
     blockCapsule.generatedByMyself = true;
     this.pushBlock(blockCapsule);
+
+    long pushBlockEndTime = System.currentTimeMillis();
+    System.out.println("generate block push block end time: " + (pushBlockEndTime - loopEndTime));
+
     return blockCapsule;
   }
 
