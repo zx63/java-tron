@@ -79,6 +79,14 @@ public class NodeDelegateImpl implements NodeDelegate {
       throw new BadBlockException("Contract Exectute exception," + e.getMessage());
     } catch (InterruptedException e) {
       throw new BadBlockException("pre validate signature exception," + e.getMessage());
+    } catch (TaposException e) {
+      throw new BadBlockException("TaposException," + e.getMessage());
+    } catch (DupTransactionException e) {
+      throw new BadBlockException("DupTransactionException," + e.getMessage());
+    } catch (TooBigTransactionException e) {
+      throw new BadBlockException("TooBigTransactionException," + e.getMessage());
+    } catch (TransactionExpirationException e) {
+      throw new BadBlockException("TransactionExpirationException," + e.getMessage());
     }
   }
 
