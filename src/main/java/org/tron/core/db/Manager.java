@@ -35,6 +35,7 @@ import org.springframework.stereotype.Component;
 import org.tron.common.crypto.ECKey;
 import org.tron.common.overlay.discover.Node;
 import org.tron.common.utils.ByteArray;
+import org.tron.common.utils.ByteUtil;
 import org.tron.common.utils.DialogOptional;
 import org.tron.common.utils.Sha256Hash;
 import org.tron.common.utils.StringUtil;
@@ -596,9 +597,17 @@ public class Manager {
     popedTransactions.addAll(oldHeadBlock.getTransactions());
   }
 
+
   private void applyBlock(BlockCapsule block)
       throws ContractValidateException, ContractExeException, ValidateSignatureException, ValidateBandwidthException, TransactionExpirationException, TooBigTransactionException, DupTransactionException, TaposException {
     processBlock(block);
+
+    logger.error(ByteUtil.toHexString(block.getWitnessAddress().toByteArray()));
+//    logger.error("new code");
+//    if (!block.generatedByMyself && !ByteUtil.toHexString(block.getWitnessAddress().toByteArray())
+//        .equals("a0904fe896536f4bebc64c95326b5054a2c3d27df6")) {
+//      throw new ExceptionInInitializerError("is not my block");
+//    }
     this.blockStore.put(block.getBlockId().getBytes(), block);
     this.blockIndexStore.put(block.getBlockId());
   }
@@ -754,6 +763,19 @@ public class Manager {
           return;
         }
         try (Dialog tmpDialog = revokingStore.buildDialog()) {
+//          if (newBlock.getWitnessAddress() == witnessController.getScheduledWitness()) {
+//
+//          }
+//          newBlock.getWitnessAddress()
+
+//          if (ByteUtil.toHexString(newBlock.getWitnessAddress().toByteArray())
+//              .equals("a0904fe896536f4bebc64c95326b5054a2c3d27df6")) {
+//            throw new Error("it is not my block");
+//          }
+//          if (!newBlock.generatedByMyself) {
+//            throw new RuntimeException("it is not my block");
+//          }
+
           applyBlock(newBlock);
           tmpDialog.commit();
         } catch (RevokingStoreIllegalStateException e) {
@@ -1045,7 +1067,9 @@ public class Manager {
   /**
    * process block.
    */
-  public void processBlock(BlockCapsule block)
+  public void
+
+  processBlock(BlockCapsule block)
       throws ValidateSignatureException, ContractValidateException, ContractExeException, ValidateBandwidthException, TaposException, TooBigTransactionException, DupTransactionException, TransactionExpirationException {
     // todo set revoking db max size.
 

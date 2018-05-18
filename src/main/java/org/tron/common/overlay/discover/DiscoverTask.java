@@ -17,13 +17,12 @@
  */
 package org.tron.common.overlay.discover;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tron.common.overlay.discover.table.KademliaOptions;
 import org.tron.common.overlay.discover.table.NodeEntry;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class DiscoverTask implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger("DiscoverTask");
@@ -60,7 +59,7 @@ public class DiscoverTask implements Runnable {
                         nodeManager.getNodeHandler(n).sendFindNode(nodeId);
                         tried.add(n);
                         Thread.sleep(50);
-                    }catch (InterruptedException e) {
+                    } catch (InterruptedException e) {
                     } catch (Exception ex) {
                         logger.error("Unexpected Exception " + ex, ex);
                     }
