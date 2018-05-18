@@ -665,7 +665,7 @@ public class Manager {
    */
   public synchronized void pushBlock(final BlockCapsule block)
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
-      UnLinkedBlockException, ValidateScheduleException, ValidateBandwidthException {
+      UnLinkedBlockException, ValidateScheduleException, ValidateBandwidthException, TaposException, TooBigTransactionException, DupTransactionException, TransactionExpirationException {
 
     try (PendingManager pm = new PendingManager(this)) {
 
@@ -712,11 +712,11 @@ public class Manager {
               newBlock.getNum(),
               newBlock.getBlockId());
 
-          logger.error(
+          logger.warn(
               "******** before switchFork ******* push block: "
-                  + block
+                  + block.getShortString()
                   + ", new block:"
-                  + newBlock
+                  + newBlock.getShortString()
                   + ", dynamic head num: "
                   + dynamicPropertiesStore.getLatestBlockHeaderNumber()
                   + ", dynamic head hash: "
@@ -733,11 +733,11 @@ public class Manager {
           switchFork(newBlock);
           logger.info("save block: " + newBlock);
 
-          logger.error(
+          logger.warn(
               "******** after switchFork ******* push block: "
-                  + block
+                  + block.getShortString()
                   + ", new block:"
-                  + newBlock
+                  + newBlock.getShortString()
                   + ", dynamic head num: "
                   + dynamicPropertiesStore.getLatestBlockHeaderNumber()
                   + ", dynamic head hash: "
@@ -757,14 +757,6 @@ public class Manager {
           applyBlock(newBlock);
           tmpDialog.commit();
         } catch (RevokingStoreIllegalStateException e) {
-          logger.debug(e.getMessage(), e);
-        } catch (TaposException e) {
-          logger.debug(e.getMessage(), e);
-        } catch (DupTransactionException e) {
-          logger.debug(e.getMessage(), e);
-        } catch (TooBigTransactionException e) {
-          logger.debug(e.getMessage(), e);
-        } catch (TransactionExpirationException e) {
           logger.debug(e.getMessage(), e);
         }
       }
@@ -934,9 +926,6 @@ public class Manager {
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       UnLinkedBlockException, ValidateScheduleException, ValidateBandwidthException {
 
-    long startTime = System.currentTimeMillis();
-    System.out.println("generate block start time: " + startTime);
-
     final long timestamp = this.dynamicPropertiesStore.getLatestBlockHeaderTimestamp();
     final long number = this.dynamicPropertiesStore.getLatestBlockHeaderNumber();
     final Sha256Hash preHash = this.dynamicPropertiesStore.getLatestBlockHeaderHash();
@@ -965,7 +954,7 @@ public class Manager {
         continue;
       }
 
-      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.4) {
+      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
         logger.debug("Processing transaction time exceeds the 50% producing time。");
         break;
       }
@@ -1001,9 +990,6 @@ public class Manager {
       }
     }
 
-    long loopEndTime = System.currentTimeMillis();
-    System.out.println("generate block loop end time: " + (loopEndTime - startTime));
-
     dialog.reset();
 
     if (postponedTrxCount > 0) {
@@ -1011,17 +997,24 @@ public class Manager {
     }
 
     logger.info(
-        "postponedTrxCount[" + postponedTrxCount + "],TrxLeft[" + pendingTransactions.size() + "]");
-
+        "postponedTrxCount[" + postponedTrxCount + "],TrxLeft[" + pendingTransactions.size()
+            + "]");
     blockCapsule.setMerkleRoot();
     blockCapsule.sign(privateKey);
     blockCapsule.generatedByMyself = true;
-    this.pushBlock(blockCapsule);
-
-    long pushBlockEndTime = System.currentTimeMillis();
-    System.out.println("generate block push block end time: " + (pushBlockEndTime - loopEndTime));
-
-    return blockCapsule;
+    try {
+      this.pushBlock(blockCapsule);
+      return blockCapsule;
+    } catch (TaposException e) {
+      logger.info("contract not processed during TaposException");
+    } catch (TooBigTransactionException e) {
+      logger.info("contract not processed during TooBigTransactionException");
+    } catch (DupTransactionException e) {
+      logger.info("contract not processed during DupTransactionException");
+    } catch (TransactionExpirationException e) {
+      logger.info("contract not processed during TransactionExpirationException");
+    }
+    return null;
   }
 
   private void setAccountStore(final AccountStore accountStore) {
