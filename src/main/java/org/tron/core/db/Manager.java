@@ -35,6 +35,7 @@ import org.springframework.stereotype.Component;
 import org.tron.common.crypto.ECKey;
 import org.tron.common.overlay.discover.Node;
 import org.tron.common.utils.ByteArray;
+import org.tron.common.utils.CycleBloomFilter;
 import org.tron.common.utils.DialogOptional;
 import org.tron.common.utils.Sha256Hash;
 import org.tron.common.utils.StringUtil;
@@ -134,6 +135,8 @@ public class Manager {
   private WitnessController witnessController;
 
   private ExecutorService validateSignService;
+
+  private CycleBloomFilter cycleBloomFilter;
 
   public WitnessStore getWitnessStore() {
     return this.witnessStore;
@@ -287,6 +290,8 @@ public class Manager {
 
     validateSignService = Executors
         .newFixedThreadPool(Args.getInstance().getValidateSignThreadNum());
+
+    initCycleBloomFilter();
   }
 
   public BlockId getGenesisBlockId() {
@@ -417,7 +422,7 @@ public class Manager {
     this.getAccountStore().put(account.createDbKey(), account);
   }
 
-  void validateTapos(TransactionCapsule transactionCapsule) throws TaposException {
+  private void validateTapos(TransactionCapsule transactionCapsule) throws TaposException {
     byte[] refBlockHash = transactionCapsule.getInstance()
         .getRawData().getRefBlockHash().toByteArray();
     byte[] refBlockNumBytes = transactionCapsule.getInstance()
@@ -442,7 +447,7 @@ public class Manager {
     }
   }
 
-  void validateCommon(TransactionCapsule transactionCapsule)
+  private void validateCommon(TransactionCapsule transactionCapsule)
       throws TransactionExpirationException, TooBigTransactionException {
     if (transactionCapsule.getData().length > Constant.TRANSACTION_MAX_BYTE_SIZE) {
       throw new TooBigTransactionException(
@@ -458,11 +463,13 @@ public class Manager {
     }
   }
 
-  void validateDup(TransactionCapsule transactionCapsule) throws DupTransactionException {
-    if (getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()) != null) {
-      logger.debug(
-          getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()).toString());
-      throw new DupTransactionException("dup trans");
+  private void validateDup(TransactionCapsule transactionCapsule) throws DupTransactionException {
+    if (cycleBloomFilter.mightContain(transactionCapsule.getTransactionId().getBytes())) {
+      if (getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()) != null) {
+        logger.debug(
+            getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()).toString());
+        throw new DupTransactionException("dup trans");
+      }
     }
   }
 
@@ -617,6 +624,11 @@ public class Manager {
     processBlock(block);
     this.blockStore.put(block.getBlockId().getBytes(), block);
     this.blockIndexStore.put(block.getBlockId());
+  }
+
+  private void updateTransBloomFilter(BlockCapsule block) {
+    block.getTransactions()
+        .forEach(trans -> this.cycleBloomFilter.put(trans.getTransactionId().getBytes()));
   }
 
   private void switchFork(BlockCapsule newHead) {
@@ -906,13 +918,13 @@ public class Manager {
     if (trxCap == null) {
       return false;
     }
+    validateCommon(trxCap);
 
     validateDup(trxCap);
     if (!trxCap.validateSignature()) {
       throw new ValidateSignatureException("trans sig validate failed");
     }
     validateTapos(trxCap);
-    validateCommon(trxCap);
 
     final List<Actuator> actuatorList = ActuatorFactory.createActuator(trxCap, this);
     TransactionResultCapsule ret = new TransactionResultCapsule();
@@ -1091,7 +1103,8 @@ public class Manager {
     this.updateDynamicProperties(block);
     this.updateSignedWitness(block);
     this.updateLatestSolidifiedBlock();
-    updateMaintenanceState(needMaint);
+    this.updateTransBloomFilter(block);
+    this.updateMaintenanceState(needMaint);
     //witnessController.updateWitnessSchedule();
     updateRecentBlock(block);
   }
@@ -1164,6 +1177,7 @@ public class Manager {
   private void processMaintenance(BlockCapsule block) {
     witnessController.updateWitness();
     this.dynamicPropertiesStore.updateNextMaintenanceTime(block.getTimeStamp());
+    cycleBloomFilter.swich();
   }
 
   /**
@@ -1326,5 +1340,9 @@ public class Manager {
         throw new ValidateSignatureException(e.getCause().getMessage());
       }
     }
+  }
+
+  private void initCycleBloomFilter() {
+
   }
 }
