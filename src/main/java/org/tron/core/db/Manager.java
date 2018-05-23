@@ -139,8 +139,12 @@ public class Manager {
 
   private ExecutorService validateSignService;
 
+  public enum TransHashState {
+    PROCESSED, DB
+  }
+
   @Getter
-  private Cache<Sha256Hash, Boolean> transHashCache = CacheBuilder
+  private Cache<Sha256Hash, TransHashState> transHashCache = CacheBuilder
       .newBuilder().expireAfterWrite(1, TimeUnit.DAYS).recordStats().build();
 
   public WitnessStore getWitnessStore() {
@@ -470,10 +474,18 @@ public class Manager {
   }
 
   void validateDup(TransactionCapsule transactionCapsule) throws DupTransactionException {
-    if (getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()) != null) {
-      logger.debug(
-          getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()).toString());
-      throw new DupTransactionException("dup trans");
+    TransHashState state = transHashCache.getIfPresent(transactionCapsule.getTransactionId());
+    if (state != null) {
+      if (state == TransHashState.DB) {
+        throw new DupTransactionException("dup trans");
+      } else if (state == TransHashState.PROCESSED) {
+        if (getTransactionStore().get(transactionCapsule.getTransactionId().getBytes()) != null) {
+          logger.debug(
+              getTransactionStore().get(transactionCapsule.getTransactionId().getBytes())
+                  .toString());
+          throw new DupTransactionException("dup trans");
+        }
+      }
     }
   }
 
@@ -492,6 +504,10 @@ public class Manager {
 
     //validateFreq(trx);
     synchronized (this) {
+      if (transHashCache.getIfPresent(trx.getTransactionId()) == null) {
+        transHashCache.put(trx.getTransactionId(), TransHashState.PROCESSED);
+      }
+
       if (!dialog.valid()) {
         dialog.setValue(revokingStore.buildDialog());
       }
@@ -526,7 +542,6 @@ public class Manager {
         this.getAccountStore().put(accountCapsule.createDbKey(), accountCapsule);
         return;
       }
-
 
       long bandwidthPerTransaction = getDynamicPropertiesStore().getBandwidthPerTransaction();
       if (contract.getType() == TransferAssetContract) {
@@ -788,11 +803,11 @@ public class Manager {
         } catch (RevokingStoreIllegalStateException e) {
           logger.error(e.getMessage(), e);
         } catch (Throwable throwable) {
-        logger.error(throwable.getMessage(), throwable);
-        khaosDb.removeBlk(block.getBlockId());
-        throw throwable;
+          logger.error(throwable.getMessage(), throwable);
+          khaosDb.removeBlk(block.getBlockId());
+          throw throwable;
+        }
       }
-    }
       logger.info("save block: " + newBlock);
     }
   }
@@ -1116,7 +1131,7 @@ public class Manager {
 
   private void updateTransHashCache(BlockCapsule block) {
     for (TransactionCapsule transactionCapsule : block.getTransactions()) {
-      this.transHashCache.put(transactionCapsule.getHash(), true);
+      this.transHashCache.put(transactionCapsule.getHash(), TransHashState.DB);
     }
   }
 
@@ -1352,7 +1367,7 @@ public class Manager {
     }
   }
 
-  private void loadTransHashCache() {
+  void loadTransHashCache() {
     long num = getDynamicPropertiesStore().getLatestBlockHeaderNumber();
     long earliestTime = this.getHeadBlockTimeStamp() - Constant.MAXIMUM_TIME_UNTIL_EXPIRATION;
     while (num > 0) {
@@ -1368,7 +1383,7 @@ public class Manager {
         break;
       }
       for (TransactionCapsule transactionCapsule : block.getTransactions()) {
-          transHashCache.put(transactionCapsule.getTransactionId(), true);
+        transHashCache.put(transactionCapsule.getTransactionId(), true);
       }
       num--;
     }
@@ -1379,4 +1394,27 @@ public class Manager {
       transHashCache.invalidate(transactionCapsule.getTransactionId());
     }
   }
+
+//  public static class StatusCache {
+//
+//    public static final short PROCESSED = 1;
+//    public static final short DUP = 2;
+//    public static final short NON = 3;
+//    @Getter
+//    private Cache<Sha256Hash, Short> transHashCache = CacheBuilder
+//        .newBuilder().expireAfterWrite(1, TimeUnit.DAYS).recordStats().build();
+//
+//    public int getTransStatus(TransactionCapsule trx) {
+//      Short ret = transHashCache.getIfPresent(trx);
+//      if (ret == null) {
+//        return NON;
+//      } else {
+//        return ret;
+//      }
+//    }
+//
+//    private void put(TransactionCapsule trx, short status) {
+//      transHashCache.put(trx.getTransactionId(), status);
+//    }
+//  }
 }
