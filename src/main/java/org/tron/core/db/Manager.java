@@ -517,7 +517,6 @@ public class Manager {
         return;
       }
 
-
       long bandwidthPerTransaction = getDynamicPropertiesStore().getBandwidthPerTransaction();
       if (contract.getType() == TransferAssetContract) {
         ByteString assetName;
@@ -721,6 +720,12 @@ public class Manager {
         if (newBlock.getNum() <= getDynamicPropertiesStore().getLatestBlockHeaderNumber()) {
           return;
         }
+
+        if (newBlock.getTimeStamp() <= getDynamicPropertiesStore()
+            .getLatestBlockHeaderTimestamp()) {
+          return;
+        }
+
         // switch fork
         if (!newBlock
             .getParentHash()
@@ -777,11 +782,11 @@ public class Manager {
         } catch (RevokingStoreIllegalStateException e) {
           logger.error(e.getMessage(), e);
         } catch (Throwable throwable) {
-        logger.error(throwable.getMessage(), throwable);
-        khaosDb.removeBlk(block.getBlockId());
-        throw throwable;
+          logger.error(throwable.getMessage(), throwable);
+          khaosDb.removeBlk(block.getBlockId());
+          throw throwable;
+        }
       }
-    }
       logger.info("save block: " + newBlock);
     }
   }
@@ -907,16 +912,22 @@ public class Manager {
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       ValidateBandwidthException, TransactionExpirationException, TooBigTransactionException,
       DupTransactionException, TaposException {
+
     if (trxCap == null) {
       return false;
     }
 
+    if (trxCap.getInstance().getRawData().getContractList().size() > 1) {
+      throw new ContractValidateException("act size greater than 1, this is extend feature");
+    }
+
+    validateTapos(trxCap);
+    validateCommon(trxCap);
     validateDup(trxCap);
+
     if (!trxCap.validateSignature()) {
       throw new ValidateSignatureException("trans sig validate failed");
     }
-    validateTapos(trxCap);
-    validateCommon(trxCap);
 
     final List<Actuator> actuatorList = ActuatorFactory.createActuator(trxCap, this);
     TransactionResultCapsule ret = new TransactionResultCapsule();
