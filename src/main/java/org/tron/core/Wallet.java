@@ -228,7 +228,7 @@ public class Wallet {
       }
 
       if (dbManager.getTransactionIdCache().getIfPresent(trx.getTransactionId()) != null) {
-        logger.debug("This transaction has been processed, discard the transaction");
+        logger.info("This transaction has been processed, discard the transaction");
         return builder.setResult(false).setCode(response_code.DUP_TRANSACTION_ERROR).build();
       } else {
         dbManager.getTransactionIdCache().put(trx.getTransactionId(), true);

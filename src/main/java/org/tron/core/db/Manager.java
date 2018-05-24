@@ -140,7 +140,7 @@ public class Manager {
 
   @Getter
   private Cache<Sha256Hash, Boolean> transactionIdCache = CacheBuilder
-      .newBuilder().maximumSize(100_000).recordStats().build();
+      .newBuilder().maximumSize(10_000).recordStats().build();
 
   public WitnessStore getWitnessStore() {
     return this.witnessStore;
