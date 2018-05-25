@@ -37,10 +37,9 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
       ret.setStatus(fee, code.FAILED);
       throw new ContractExeException(e.getMessage());
     }
-    ByteString ownerAddress = unfreezeBalanceContract.getOwnerAddress();
-    byte[] ownerAddressBytes = ownerAddress.toByteArray();
+    byte[] ownerAddress = unfreezeBalanceContract.getOwnerAddress().toByteArray();
 
-    AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddressBytes);
+    AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
     long oldBalance = accountCapsule.getBalance();
     long unfreezeBalance = 0L;
     List<Frozen> frozenList = Lists.newArrayList();
@@ -60,16 +59,16 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
         .clearFrozen().addAllFrozen(frozenList).build());
 
     VotesCapsule votesCapsule;
-    if (!dbManager.getVotesStore().has(ownerAddressBytes)) {
-      votesCapsule = new VotesCapsule(ownerAddress, accountCapsule.getVotesList());
+    if (!dbManager.getVotesStore().has(ownerAddress)) {
+      votesCapsule = new VotesCapsule(unfreezeBalanceContract.getOwnerAddress(), accountCapsule.getVotesList());
     } else {
-      votesCapsule = dbManager.getVotesStore().get(ownerAddressBytes);
+      votesCapsule = dbManager.getVotesStore().get(ownerAddress);
     }
     accountCapsule.clearVotes();
     votesCapsule.clearNewVotes();
 
-    dbManager.getAccountStore().put(ownerAddressBytes, accountCapsule);
-    dbManager.getVotesStore().put(ownerAddressBytes, votesCapsule);
+    dbManager.getAccountStore().put(ownerAddress, accountCapsule);
+    dbManager.getVotesStore().put(ownerAddress, votesCapsule);
     ret.setStatus(fee, code.SUCESS);
 
     return true;
@@ -94,20 +93,17 @@ public class UnfreezeBalanceActuator extends AbstractActuator {
       logger.debug(e.getMessage(), e);
       throw new ContractValidateException(e.getMessage());
     }
-    ByteString ownerAddress = unfreezeBalanceContract.getOwnerAddress();
-    if (!Wallet.addressValid(ownerAddress.toByteArray())) {
+    byte[] ownerAddress = unfreezeBalanceContract.getOwnerAddress().toByteArray();
+    if (!Wallet.addressValid(ownerAddress)) {
       throw new ContractValidateException("Invalidate address");
     }
 
-    if (!dbManager.getAccountStore().has(ownerAddress.toByteArray())) {
+    AccountCapsule accountCapsule = dbManager.getAccountStore().get(ownerAddress);
+    if (accountCapsule == null) {
       String readableOwnerAddress = StringUtil.createReadableString(ownerAddress);
       throw new ContractValidateException(
           "Account[" + readableOwnerAddress + "] not exists");
     }
-
-    AccountCapsule accountCapsule = dbManager.getAccountStore()
-        .get(ownerAddress.toByteArray());
-
     if (accountCapsule.getFrozenCount() <= 0) {
       throw new ContractValidateException("no frozenBalance");
     }
