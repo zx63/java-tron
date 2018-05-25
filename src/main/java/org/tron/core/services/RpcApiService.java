@@ -576,7 +576,7 @@ public class RpcApiService implements Service {
       } catch (ContractValidateException e) {
         responseObserver
             .onNext(null);
-        logger.debug("ContractValidateException", e.getMessage());
+        logger.debug("ContractValidateException: {}", e.getMessage());
       }
       responseObserver.onCompleted();
     }
