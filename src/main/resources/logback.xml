@@ -10,7 +10,7 @@
       <pattern>%d{HH:mm:ss.SSS} %-5level [%t] [%c{1}]\(%F:%L\) %m%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
+      <level>TRACE</level>
     </filter>
   </appender>
 
@@ -45,7 +45,7 @@
     <appender-ref ref="FILE"/>
   </appender>
 
-  <root level="INFO">
+  <root level="TRACE">
     <appender-ref ref="STDOUT"/>
     <appender-ref ref="ASYNC"/>
   </root>
