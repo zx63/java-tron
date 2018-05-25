@@ -70,14 +70,14 @@ import org.tron.protos.Protocol.Transaction;
 @Component
 public class Wallet {
 
-  private static String addressPreFixString = Constant.ADD_PRE_FIX_STRING_TESTNET;  //default testnet
-  private static byte addressPreFixByte = Constant.ADD_PRE_FIX_BYTE_TESTNET;
   @Getter
   private final ECKey ecKey;
   @Autowired
   private NodeImpl p2pNode;
   @Autowired
   private Manager dbManager;
+  private static String addressPreFixString = Constant.ADD_PRE_FIX_STRING_TESTNET;  //default testnet
+  private static byte addressPreFixByte = Constant.ADD_PRE_FIX_BYTE_TESTNET;
 
   /**
    * Creates a new Wallet with a random ECKey.
@@ -92,6 +92,10 @@ public class Wallet {
   public Wallet(final ECKey ecKey) {
     this.ecKey = ecKey;
     logger.info("wallet address: {}", ByteArray.toHexString(this.ecKey.getAddress()));
+  }
+
+  public byte[] getAddress() {
+    return ecKey.getAddress();
   }
 
   public static String getAddressPreFixString() {
@@ -176,9 +180,6 @@ public class Wallet {
     return address;
   }
 
-  public byte[] getAddress() {
-    return ecKey.getAddress();
-  }
 
   public Account getBalance(Account account) {
     AccountStore accountStore = dbManager.getAccountStore();
@@ -208,24 +209,34 @@ public class Wallet {
    */
   public GrpcAPI.Return broadcastTransaction(Transaction signaturedTransaction) {
     GrpcAPI.Return.Builder builder = GrpcAPI.Return.newBuilder();
-    TransactionCapsule trx = new TransactionCapsule(signaturedTransaction);
+
     try {
+      TransactionCapsule trx = new TransactionCapsule(signaturedTransaction);
       Message message = new TransactionMessage(signaturedTransaction);
+
       if (dbManager.isTooManyPending()) {
         logger.debug(
             "Manager is busy, pending transaction count:{}, discard the new coming transaction",
             (dbManager.getPendingTransactions().size() + PendingManager.getTmpTransactions()
                 .size()));
         return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
-      } else if (dbManager.isGeneratingBlock()) {
+      }
+
+      if (dbManager.isGeneratingBlock()) {
         logger.debug("Manager is generating block, discard the new coming transaction");
         return builder.setResult(false).setCode(response_code.SERVER_BUSY).build();
-      } else
-      {
-        dbManager.pushTransactions(trx);
-        p2pNode.broadcast(message);
-        return builder.setResult(true).setCode(response_code.SUCCESS).build();
       }
+
+      if (dbManager.getTransactionIdCache().getIfPresent(trx.getTransactionId()) != null) {
+        logger.debug("This transaction has been processed, discard the transaction");
+        return builder.setResult(false).setCode(response_code.DUP_TRANSACTION_ERROR).build();
+      } else {
+        dbManager.getTransactionIdCache().put(trx.getTransactionId(), true);
+      }
+
+      dbManager.pushTransactions(trx);
+      p2pNode.broadcast(message);
+      return builder.setResult(true).setCode(response_code.SUCCESS).build();
     } catch (ValidateSignatureException e) {
       logger.error(e.getMessage(), e);
       return builder.setResult(false).setCode(response_code.SIGERROR)
