@@ -905,7 +905,8 @@ public class Manager {
 
     // judge create block time
     if (when < timestamp) {
-      throw new IllegalArgumentException("generate block timestamp is invalid.");
+      return null;
+//      throw new IllegalArgumentException("generate block timestamp is invalid.");
     }
 
     long currentTrxSize = 0;

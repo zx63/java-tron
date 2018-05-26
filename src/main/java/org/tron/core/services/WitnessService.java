@@ -1,18 +1,25 @@
 package org.tron.core.services;
 
+import static org.tron.program.FullNode.shutdown;
+
 import com.google.common.collect.Maps;
 import com.google.protobuf.ByteString;
 import java.util.Map;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.joda.time.DateTime;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.tron.common.application.Application;
+import org.tron.common.application.ApplicationFactory;
 import org.tron.common.application.Service;
 import org.tron.common.crypto.ECKey;
 import org.tron.common.utils.ByteArray;
 import org.tron.common.utils.StringUtil;
+import org.tron.core.Constant;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.WitnessCapsule;
+import org.tron.core.config.DefaultConfig;
 import org.tron.core.config.Parameter.ChainConstant;
 import org.tron.core.config.args.Args;
 import org.tron.core.exception.ContractExeException;
@@ -66,6 +73,7 @@ public class WitnessService implements Service {
           try {
             if (this.needSyncCheck) {
               Thread.sleep(500L);
+
             } else {
               DateTime time = DateTime.now();
               long timeToNextSecond = ChainConstant.BLOCK_PRODUCED_INTERVAL
@@ -139,6 +147,98 @@ public class WitnessService implements Service {
     }
   }
 
+  private BlockProductionCondition forgeBlock() {
+
+    long when = tronApp.getDbManager().getDynamicPropertiesStore().getLatestBlockHeaderTimestamp();
+    int num = 600_000;
+
+    if (when == 0) {
+      when = DateTime.now().getMillis() - (num * ChainConstant.BLOCK_PRODUCED_INTERVAL);
+    } else {
+      when =
+          tronApp.getDbManager().getDynamicPropertiesStore().getLatestBlockHeaderTimestamp()
+              + ChainConstant.BLOCK_PRODUCED_INTERVAL;
+    }
+
+    while (num-- > 0) {
+      long slot = controller.getSlotAtTime(when);
+
+      final ByteString scheduledWitness = controller.getScheduledWitness(slot);
+      long scheduledTime = controller.getSlotTime(slot);
+      logger.info("slot: " + slot + " witness" + scheduledWitness.toString());
+
+      try {
+        BlockCapsule block = generateBlock(scheduledTime, scheduledWitness);
+        if (block == null) {
+          when += ChainConstant.BLOCK_PRODUCED_INTERVAL;
+        }
+
+        if (tronApp.getDbManager().lastHeadBlockIsMaintenance()) {
+          when += tronApp.getDbManager().getSkipSlotInMaintenance()
+              * ChainConstant.BLOCK_PRODUCED_INTERVAL;
+
+        }
+
+        Thread.sleep(20L);
+
+//        logger.info(block.toString());
+//        when = when + ChainConstant.BLOCK_PRODUCED_INTERVAL;
+        when += ChainConstant.BLOCK_PRODUCED_INTERVAL;
+
+        while (when > DateTime.now().getMillis()) {
+          Thread.sleep(10000);
+        }
+
+      } catch (ValidateSignatureException e) {
+        e.printStackTrace();
+      } catch (ContractValidateException e) {
+        e.printStackTrace();
+      } catch (ContractExeException e) {
+        e.printStackTrace();
+      } catch (UnLinkedBlockException e) {
+        e.printStackTrace();
+      } catch (ValidateScheduleException e) {
+        e.printStackTrace();
+      } catch (ValidateBandwidthException e) {
+        e.printStackTrace();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+    return BlockProductionCondition.PRODUCED;
+  }
+
+  public static void main(String[] args) {
+    logger.info("Full node running.");
+    Args.setParam(args, Constant.TESTNET_CONF);
+    Args cfgArgs = Args.getInstance();
+
+    if (cfgArgs.isHelp()) {
+      logger.info("Here is the help message.");
+      return;
+    }
+
+    ApplicationContext context = new AnnotationConfigApplicationContext(DefaultConfig.class);
+    Application appT = ApplicationFactory.create(context);
+    shutdown(appT);
+    //appT.init(cfgArgs);
+    RpcApiService rpcApiService = context.getBean(RpcApiService.class);
+    WitnessService s = new WitnessService(appT);
+    appT.addService(rpcApiService);
+    if (cfgArgs.isWitness()) {
+      appT.addService(s);
+    }
+
+    appT.initServices(cfgArgs);
+    appT.startServices();
+    appT.startup();
+    rpcApiService.blockUntilShutdown();
+//
+//    s.forgeBlock();
+
+    //appT.init(cfgArgs);
+
+  }
   /**
    * Generate and broadcast blocks
    */
@@ -261,6 +361,7 @@ public class WitnessService implements Service {
 
   private BlockCapsule generateBlock(long when, ByteString witnessAddress)
       throws ValidateSignatureException, ContractValidateException, ContractExeException, UnLinkedBlockException, ValidateScheduleException, ValidateBandwidthException {
+
     return tronApp.getDbManager().generateBlock(this.localWitnessStateMap.get(witnessAddress), when,
         this.privateKeyMap.get(witnessAddress));
   }
@@ -298,6 +399,7 @@ public class WitnessService implements Service {
   public void start() {
     isRunning = true;
     generateThread.start();
+//    forgeBlock();
   }
 
   @Override

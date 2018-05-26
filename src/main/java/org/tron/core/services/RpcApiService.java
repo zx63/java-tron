@@ -114,6 +114,7 @@ public class RpcApiService implements Service {
         serverBuilder = serverBuilder.addService(new WalletApi());
       }
       serverBuilder.maxConnectionIdle(NetConstants.GRPC_IDLE_TIME_OUT, TimeUnit.MILLISECONDS);
+      serverBuilder.maxMessageSize(1000);
       apiServer = serverBuilder.build().start();
     } catch (IOException e) {
       logger.debug(e.getMessage(), e);
