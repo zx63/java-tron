@@ -337,6 +337,7 @@ public class Manager {
         this.witnessController.initWits();
         this.khaosDb.start(genesisBlock);
         this.updateRecentBlock(genesisBlock);
+        System.out.println("genesis block hash: " + ByteArray.toHexString(genesisBlock.getBlockId().getBytes()));
       }
     }
   }
