@@ -181,7 +181,9 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
             if (key.equals(InventoryType.BLOCK)) {
               value.sort(Comparator.comparingDouble(value1 -> value1.getBlockNum()));
             }
-            peer.sendMessage(new InventoryMessage(value, key));
+            InventoryMessage inv = new InventoryMessage(value, key);
+            logger.info("broadcast inv: " + inv.toString());
+            peer.sendMessage(inv);
           }));
     }
 
