@@ -336,6 +336,7 @@ public class Manager {
         this.initWitness();
         this.witnessController.initWits();
         this.khaosDb.start(genesisBlock);
+        this.updateRecentBlock(genesisBlock);
       }
     }
   }
@@ -931,7 +932,7 @@ public class Manager {
       throw new ContractValidateException("act size greater than 1, this is extend feature");
     }
 
-    validateDup(trxCap);
+    //validateDup(trxCap);
 
     if (!trxCap.validateSignature()) {
       throw new ValidateSignatureException("trans sig validate failed");
