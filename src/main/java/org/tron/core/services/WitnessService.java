@@ -179,7 +179,6 @@ public class WitnessService implements Service {
 
         }
 
-        Thread.sleep(20L);
 
 //        logger.info(block.toString());
 //        when = when + ChainConstant.BLOCK_PRODUCED_INTERVAL;
@@ -397,9 +396,9 @@ public class WitnessService implements Service {
 
   @Override
   public void start() {
-    isRunning = true;
-    generateThread.start();
-//    forgeBlock();
+//    isRunning = true;
+//    generateThread.start();
+    forgeBlock();
   }
 
   @Override
