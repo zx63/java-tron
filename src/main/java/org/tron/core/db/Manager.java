@@ -920,10 +920,10 @@ public class Manager {
     Iterator iterator = pendingTransactions.iterator();
     while (iterator.hasNext()) {
       TransactionCapsule trx = (TransactionCapsule) iterator.next();
-      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
-        logger.debug("Processing transaction time exceeds the 50% producing time。");
-        break;
-      }
+//      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
+//        logger.debug("Processing transaction time exceeds the 50% producing time。");
+//        break;
+//      }
       currentTrxSize += trx.getSerializedSize();
       // check the block size
       if (currentTrxSize + 2 > ChainConstant.BLOCK_SIZE) {
