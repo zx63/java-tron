@@ -116,6 +116,9 @@ public class RpcApiService implements Service {
         }
       } else {
         serverBuilder = serverBuilder.addService(new WalletApi());
+        if (args.isWalletExtensionApi()) {
+          serverBuilder = serverBuilder.addService(new WalletExtensionApi());
+        }
       }
       serverBuilder.maxConnectionIdle(NetConstants.GRPC_IDLE_TIME_OUT, TimeUnit.MILLISECONDS);
       apiServer = serverBuilder.build().start();
