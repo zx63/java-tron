@@ -21,7 +21,7 @@ package org.tron.common.overlay.discover;
 import static java.lang.Math.min;
 
 import java.util.concurrent.atomic.AtomicLong;
-import org.tron.common.overlay.message.ReasonCode;
+import org.tron.protos.Protocol.ReasonCode;
 
 public class NodeStatistics {
 
@@ -174,7 +174,7 @@ public class NodeStatistics {
         tronLastRemoteDisconnectReason == ReasonCode.BAD_TX ||
         tronLastLocalDisconnectReason == ReasonCode.FORKED ||
         tronLastRemoteDisconnectReason == ReasonCode.FORKED ||
-        tronLastLocalDisconnectReason ==  ReasonCode.UNLINKABLE ||
+        tronLastLocalDisconnectReason == ReasonCode.UNLINKABLE ||
         tronLastRemoteDisconnectReason == ReasonCode.UNLINKABLE ||
         tronLastLocalDisconnectReason == ReasonCode.INCOMPATIBLE_VERSION ||
         tronLastRemoteDisconnectReason == ReasonCode.INCOMPATIBLE_VERSION ||

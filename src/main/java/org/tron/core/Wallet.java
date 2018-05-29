@@ -19,7 +19,9 @@
 package org.tron.core;
 
 import com.google.protobuf.ByteString;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.tron.api.GrpcAPI;
+import org.tron.api.GrpcAPI.AccountNetMessage;
 import org.tron.api.GrpcAPI.AssetIssueList;
 import org.tron.api.GrpcAPI.BlockList;
 import org.tron.api.GrpcAPI.NumberMessage;
@@ -46,6 +49,7 @@ import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.TransactionCapsule;
 import org.tron.core.capsule.WitnessCapsule;
 import org.tron.core.db.AccountStore;
+import org.tron.core.db.BandwidthProcessor;
 import org.tron.core.db.Manager;
 import org.tron.core.db.PendingManager;
 import org.tron.core.exception.ContractExeException;
@@ -174,17 +178,28 @@ public class Wallet {
       return null;
     }
     byte[] address = decode58Check(addressBase58);
+
+    if (address == null) {
+      return null;
+    }
+
     if (!addressValid(address)) {
       return null;
     }
+
     return address;
   }
 
 
-  public Account getBalance(Account account) {
+  public Account getAccount(Account account) {
     AccountStore accountStore = dbManager.getAccountStore();
     AccountCapsule accountCapsule = accountStore.get(account.getAddress().toByteArray());
-    return accountCapsule == null ? null : accountCapsule.getInstance();
+    if (accountCapsule == null) {
+      return null;
+    }
+    BandwidthProcessor processor = new BandwidthProcessor(dbManager);
+    processor.updateUsage(accountCapsule);
+    return accountCapsule.getInstance();
   }
 
   /**
@@ -216,11 +231,10 @@ public class Wallet {
 
       // No validator.
       dbManager.getTransactionStore().put(trx.getTransactionId().getBytes(), trx);
-
       p2pNode.broadcast(message);
       return builder.setResult(true).setCode(response_code.SUCCESS).build();
     } catch (Exception e) {
-      logger.error("exception caught", e);
+      logger.info("exception caught" + e.getMessage());
       return builder.setResult(false).setCode(response_code.OTHER_ERROR)
           .setMessage(ByteString.copyFromUtf8("other error"))
           .build();
@@ -229,9 +243,9 @@ public class Wallet {
 
   public Block getNowBlock() {
     List<BlockCapsule> blockList = dbManager.getBlockStore().getBlockByLatestNum(1);
-    if(CollectionUtils.isEmpty(blockList)){
+    if (CollectionUtils.isEmpty(blockList)) {
       return null;
-    }else{
+    } else {
       return blockList.get(0).getInstance();
     }
   }
@@ -272,6 +286,37 @@ public class Wallet {
         .forEach(issueCapsule -> {
           builder.addAssetIssue(issueCapsule.getInstance());
         });
+    return builder.build();
+  }
+
+  public AccountNetMessage getAccountNet(ByteString accountAddress) {
+    if (accountAddress == null || accountAddress.size() == 0) {
+      return null;
+    }
+    AccountNetMessage.Builder builder = AccountNetMessage.newBuilder();
+    AccountCapsule accountCapsule = dbManager.getAccountStore().get(accountAddress.toByteArray());
+    if (accountCapsule == null) {
+      return null;
+    }
+
+    BandwidthProcessor processor = new BandwidthProcessor(dbManager);
+    processor.updateUsage(accountCapsule);
+
+    long netLimit = processor.calculateGlobalNetLimit(accountCapsule.getFrozenBalance());
+    long freeNetLimit = dbManager.getDynamicPropertiesStore().getFreeNetLimit();
+
+    Map<String, Long> assetNetLimitMap = new HashMap<>();
+    accountCapsule.getAllFreeAssetNetUsage().keySet().forEach(asset -> {
+      byte[] key = ByteArray.fromString(asset);
+      assetNetLimitMap.put(asset, dbManager.getAssetIssueStore().get(key).getFreeAssetNetLimit());
+    });
+
+    builder.setFreeNetUsed(accountCapsule.getFreeNetUsage())
+        .setFreeNetLimit(freeNetLimit)
+        .setNetUsed(accountCapsule.getNetUsage())
+        .setNetLimit(netLimit)
+        .putAllAssetNetUsed(accountCapsule.getAllFreeAssetNetUsage())
+        .putAllAssetNetLimit(assetNetLimitMap);
     return builder.build();
   }
 
@@ -342,4 +387,5 @@ public class Wallet {
     }
     return transaction;
   }
+
 }
