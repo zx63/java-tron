@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,9 +75,11 @@ public class SyncPool {
 
   private int maxActiveNodes = args.getNodeMaxActiveNodes() > 0 ? args.getNodeMaxActiveNodes() : 30;
 
-  private ScheduledExecutorService poolLoopExecutor = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledExecutorService poolLoopExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+          .setNameFormat("SyncPoolLoopThread").build());
 
-  private ScheduledExecutorService logExecutor = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledExecutorService logExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+          .setNameFormat("SyncPoolLogPrinter").build());
 
   private PeerClient peerClient;
 

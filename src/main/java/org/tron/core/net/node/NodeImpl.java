@@ -193,7 +193,8 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
     }
   }
 
-  private ScheduledExecutorService logExecutor = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledExecutorService logExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+          .setNameFormat("NodeImplLogPrinter").build());
 
   private ExecutorService trxsHandlePool = Executors
       .newFixedThreadPool(Args.getInstance().getValidateSignThreadNum(),
@@ -241,12 +242,8 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
   private ConcurrentHashMap<Sha256Hash, PriorItem> advObjToFetch = new ConcurrentHashMap<Sha256Hash, PriorItem>();
 
-  private ExecutorService broadPool = Executors.newFixedThreadPool(2, new ThreadFactory() {
-    @Override
-    public Thread newThread(Runnable r) {
-      return new Thread(r, "broad-msg-");
-    }
-  });
+  private ExecutorService broadPool = Executors.newFixedThreadPool(2,new ThreadFactoryBuilder()
+          .setNameFormat("broadcast-pool-%d").build());
 
   private HashMap<Sha256Hash, Long> badAdvObj = new HashMap<>(); //TODO:need auto erase oldest obj
 
@@ -276,10 +273,12 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
 
   private ScheduledExecutorService fetchSyncBlocksExecutor = Executors
-      .newSingleThreadScheduledExecutor();
+      .newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+              .setNameFormat("fetchSyncBlockThread").build());
 
   private ScheduledExecutorService handleSyncBlockExecutor = Executors
-      .newSingleThreadScheduledExecutor();
+      .newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+              .setNameFormat("handleSyncBlockThread").build());
 
   private volatile boolean isHandleSyncBlockActive = false;
 

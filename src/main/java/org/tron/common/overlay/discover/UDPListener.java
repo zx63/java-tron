@@ -17,6 +17,7 @@
  */
 package org.tron.common.overlay.discover;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -72,7 +73,8 @@ public class UDPListener {
   }
 
   public void start() throws Exception {
-    NioEventLoopGroup group = new NioEventLoopGroup(args.getUdpNettyWorkThreadNum());
+    NioEventLoopGroup group = new NioEventLoopGroup(args.getUdpNettyWorkThreadNum(), new ThreadFactoryBuilder()
+            .setNameFormat("UDPLister-NIO-%d").build());
     try {
       discoveryExecutor = new DiscoveryExecutor(nodeManager);
       discoveryExecutor.start();
