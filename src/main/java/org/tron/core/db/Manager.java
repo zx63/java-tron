@@ -931,9 +931,9 @@ public class Manager {
         logger.info("Processing transaction time exceeds the 50% producing time。");
         break;
       }
-      currentTrxSize += trx.getSerializedSize();
+      currentTrxSize += trx.getSerializedSize() + 2;
       // check the block size
-      if (currentTrxSize + 2 > ChainConstant.BLOCK_SIZE) {
+      if (currentTrxSize > ChainConstant.BLOCK_SIZE) {
         if (!tttt) {
           logger.info("current block size {}", currentTrxSize);
           tttt = true;
@@ -985,6 +985,7 @@ public class Manager {
     blockCapsule.sign(privateKey);
     blockCapsule.generatedByMyself = true;
     try {
+
       this.pushBlock(blockCapsule);
       logger.info("generate block success: id: {}, num: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getNum(), blockCapsule.getInstance().getSerializedSize());
       return blockCapsule;
