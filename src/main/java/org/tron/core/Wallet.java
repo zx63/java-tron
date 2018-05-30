@@ -224,7 +224,6 @@ public class Wallet {
 
       // No validator.
       dbManager.getTransactionStore().put(trx.getTransactionId().getBytes(), trx);
-
       p2pNode.broadcast(message);
       return builder.setResult(true).setCode(response_code.SUCCESS).build();
     } catch (Exception e) {
