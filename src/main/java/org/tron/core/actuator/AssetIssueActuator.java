@@ -53,7 +53,7 @@ public class AssetIssueActuator extends AbstractActuator {
       byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
       AssetIssueCapsule assetIssueCapsule = new AssetIssueCapsule(assetIssueContract);
       dbManager.getAssetIssueStore()
-          .put(assetIssueCapsule.getName().toByteArray(), assetIssueCapsule);
+          .put(assetIssueCapsule.createDbKey(), assetIssueCapsule);
 
       dbManager.adjustBalance(ownerAddress, -fee);
       dbManager.adjustBalance(dbManager.getAccountStore().getBlackhole().getAddress().toByteArray(),
@@ -111,8 +111,9 @@ public class AssetIssueActuator extends AbstractActuator {
       throw new ContractValidateException("No dbManager!");
     }
     if (!this.contract.is(AssetIssueContract.class)) {
-      throw new ContractValidateException("contract type error,expected type [AssetIssueContract],real type[" + contract
-          .getClass() + "]");
+      throw new ContractValidateException(
+          "contract type error,expected type [AssetIssueContract],real type[" + contract
+              .getClass() + "]");
     }
     final AssetIssueContract assetIssueContract;
     try {
@@ -123,18 +124,20 @@ public class AssetIssueActuator extends AbstractActuator {
     }
     byte[] ownerAddress = assetIssueContract.getOwnerAddress().toByteArray();
     if (!Wallet.addressValid(ownerAddress)) {
-      throw new ContractValidateException("Invalidate ownerAddress");
+      throw new ContractValidateException("Invalid ownerAddress");
     }
     if (!TransactionUtil.validAssetName(assetIssueContract.getName().toByteArray())) {
-      throw new ContractValidateException("Invalidate assetName");
+      throw new ContractValidateException("Invalid assetName");
     }
-
+    if ((!assetIssueContract.getAbbr().isEmpty()) && !TransactionUtil.validAssetName(assetIssueContract.getAbbr().toByteArray())) {
+      throw new ContractValidateException("Invalid abbreviation for token");
+    }
     if (!TransactionUtil.validUrl(assetIssueContract.getUrl().toByteArray())) {
-      throw new ContractValidateException("Invalidate url");
+      throw new ContractValidateException("Invalid url");
     }
     if (!TransactionUtil
         .validAssetDescription(assetIssueContract.getDescription().toByteArray())) {
-      throw new ContractValidateException("Invalidate description");
+      throw new ContractValidateException("Invalid description");
     }
 
     if (assetIssueContract.getStartTime() == 0) {
@@ -167,9 +170,23 @@ public class AssetIssueActuator extends AbstractActuator {
       throw new ContractValidateException("Num must greater than 0!");
     }
 
+    if (assetIssueContract.getPublicFreeAssetNetUsage() != 0) {
+      throw new ContractValidateException("PublicFreeAssetNetUsage must be 0!");
+    }
+
     if (assetIssueContract.getFrozenSupplyCount()
         > this.dbManager.getDynamicPropertiesStore().getMaxFrozenSupplyNumber()) {
       throw new ContractValidateException("Frozen supply list length is too long");
+    }
+
+    if (assetIssueContract.getFreeAssetNetLimit() < 0
+        || assetIssueContract.getFreeAssetNetLimit() >= ChainConstant.ONE_DAY_NET_LIMIT) {
+      throw new ContractValidateException("Invalid FreeAssetNetLimit");
+    }
+
+    if (assetIssueContract.getPublicFreeAssetNetLimit() < 0
+        || assetIssueContract.getPublicFreeAssetNetLimit() >= ChainConstant.ONE_DAY_NET_LIMIT) {
+      throw new ContractValidateException("Invalid PublicFreeAssetNetLimit");
     }
 
     long remainSupply = assetIssueContract.getTotalSupply();
@@ -207,7 +224,6 @@ public class AssetIssueActuator extends AbstractActuator {
     if (accountCapsule.getBalance() < calcFee()) {
       throw new ContractValidateException("No enough balance for fee!");
     }
-
     return true;
   }
 

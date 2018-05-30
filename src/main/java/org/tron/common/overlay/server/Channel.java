@@ -19,7 +19,6 @@ package org.tron.common.overlay.server;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
-import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -37,12 +36,12 @@ import org.tron.common.overlay.discover.NodeStatistics;
 import org.tron.common.overlay.message.DisconnectMessage;
 import org.tron.common.overlay.message.HelloMessage;
 import org.tron.common.overlay.message.MessageCodec;
-import org.tron.common.overlay.message.ReasonCode;
 import org.tron.common.overlay.message.StaticMessages;
 import org.tron.core.db.ByteArrayWrapper;
 import org.tron.core.exception.P2pException;
 import org.tron.core.net.peer.PeerConnectionDelegate;
 import org.tron.core.net.peer.TronHandler;
+import org.tron.protos.Protocol.ReasonCode;
 
 @Component
 @Scope("prototype")
@@ -111,7 +110,7 @@ public class Channel {
         pipeline.addLast("readTimeoutHandler", new ReadTimeoutHandler(60, TimeUnit.SECONDS));
         pipeline.addLast(stats.tcp);
         pipeline.addLast("protoPender", new ProtobufVarint32LengthFieldPrepender());
-        pipeline.addLast("lengthDecode", new ProtobufVarint32FrameDecoder());
+        pipeline.addLast("lengthDecode", new TrxProtobufVarint32FrameDecoder(this));
 
         //handshake first
         pipeline.addLast("handshakeHandler", handshakeHandler);

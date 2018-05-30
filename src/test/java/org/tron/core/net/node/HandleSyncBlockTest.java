@@ -1,12 +1,10 @@
 package org.tron.core.net.node;
 
 import com.google.protobuf.ByteString;
-import io.netty.util.internal.ConcurrentSet;
 import java.io.File;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +44,8 @@ public class HandleSyncBlockTest {
     ChannelManager channelManager;
     SyncPool pool;
     private static final String dbPath = "output-nodeImplTest/handleSyncBlock";
+    private static final String dbDirectory = "db_HandleSyncBlock_test";
+    private static final String indexDirectory = "index_HandleSyncBlock_test";
 
     private class Condition {
 
@@ -62,7 +62,7 @@ public class HandleSyncBlockTest {
 
     private Sha256Hash testBlockBroad() {
         Protocol.Block block = Protocol.Block.getDefaultInstance();
-        BlockMessage blockMessage = new BlockMessage(block);
+        BlockMessage blockMessage = new BlockMessage(new BlockCapsule(block));
         node.broadcast(blockMessage);
         ConcurrentHashMap<Sha256Hash, Protocol.Inventory.InventoryType> advObjToSpread = ReflectUtils
                 .getFieldValue(node, "advObjToSpread");
@@ -148,7 +148,14 @@ public class HandleSyncBlockTest {
             @Override
             public void run() {
                 logger.info("Full node running.");
-                Args.setParam(new String[]{"-d",dbPath}, "config.conf");
+                Args.setParam(
+                    new String[]{
+                        "--output-directory", dbPath,
+                        "--storage-db-directory", dbDirectory,
+                        "--storage-index-directory", indexDirectory
+                    },
+                    "config.conf"
+                );
                 Args cfgArgs = Args.getInstance();
                 cfgArgs.setNodeListenPort(17891);
                 cfgArgs.setNodeDiscoveryEnable(false);
