@@ -931,8 +931,7 @@ public class Manager {
         logger.info("Processing transaction time exceeds the 50% producing time。");
         break;
       }
-      currentTrxSize = blockCapsule.getInstance().getSerializedSize() + trx.getSerializedSize() + 2;
-      logger.info("boss current trx size: id: {}, size: {}", blockCapsule.getBlockId(), currentTrxSize);
+      currentTrxSize = blockCapsule.getInstance().getSerializedSize() + trx.getSerializedSize() + 3;
       // check the block size
       if (currentTrxSize > ChainConstant.BLOCK_SIZE) {
         if (!tttt) {
@@ -945,14 +944,10 @@ public class Manager {
       // apply transaction
       try (Dialog tmpDialog = revokingStore.buildDialog()) {
 
-        logger.info("boss before process trx: id: {}, size: {}", blockCapsule.getBlockId(), trx.getSerializedSize());
         processTransaction(trx);
-        logger.info("boss after process trx: id: {}, size: {}", blockCapsule.getBlockId(), trx.getSerializedSize());
         tmpDialog.merge();
         // push into block
-        logger.info("boss before add trx: id: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
         blockCapsule.addTransaction(trx);
-        logger.info("boss after add trx: id: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
         iterator.remove();
       } catch (ContractExeException e) {
         logger.info("contract not processed during execute");
@@ -992,7 +987,6 @@ public class Manager {
     blockCapsule.generatedByMyself = true;
     try {
 
-      logger.info("boss before generate block success: id: {}, num: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getNum(), blockCapsule.getInstance().getSerializedSize());
       this.pushBlock(blockCapsule);
       logger.info("boss after generate block success: id: {}, num: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getNum(), blockCapsule.getInstance().getSerializedSize());
       return blockCapsule;
