@@ -495,8 +495,10 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
               && sendPackage.getSize(peer) < MAX_TRX_PER_PEER)
           .sorted(Comparator.comparingInt(peer -> sendPackage.getSize(peer)))
           .findFirst().ifPresent(peer -> {
-        sendPackage.add(idToFetch, peer);
-        peer.getAdvObjWeRequested().put(idToFetch.getItem(), now);
+            if (!del.isStoreInhibit()) {
+              sendPackage.add(idToFetch, peer);
+              peer.getAdvObjWeRequested().put(idToFetch.getItem(), now);
+            }
         advObjToFetch.remove(hash);
       });
     });
@@ -687,8 +689,7 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
         //avoid TRX flood attack here.
         if (msg.getInventoryType().equals(InventoryType.TRX)
-            && (peer.isAdvInvFull()
-        || del.isStoreInhibit())) {
+            && (peer.isAdvInvFull())) {
           logger.info("A peer is flooding us, stop handle inv, the peer is:" + peer);
           return;
         }
