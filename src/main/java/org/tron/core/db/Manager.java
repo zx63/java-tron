@@ -924,6 +924,7 @@ public class Manager {
     dialog.reset();
     dialog.setValue(revokingStore.buildDialog());
     Iterator iterator = pendingTransactions.iterator();
+    boolean tttt = false;
     while (iterator.hasNext()) {
       TransactionCapsule trx = (TransactionCapsule) iterator.next();
       if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
@@ -933,7 +934,10 @@ public class Manager {
       currentTrxSize += trx.getSerializedSize();
       // check the block size
       if (currentTrxSize + 2 > ChainConstant.BLOCK_SIZE) {
-        logger.info("current block size {}", currentTrxSize);
+        if (!tttt) {
+          logger.info("current block size {}", currentTrxSize);
+          tttt = true;
+        }
         postponedTrxCount++;
         continue;
       }
@@ -982,6 +986,7 @@ public class Manager {
     blockCapsule.generatedByMyself = true;
     try {
       this.pushBlock(blockCapsule);
+      logger.info("generate block success: id: {}, num: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getNum(), blockCapsule.getInstance().getSerializedSize());
       return blockCapsule;
     } catch (TaposException e) {
       logger.info("contract not processed during TaposException");
