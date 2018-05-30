@@ -687,7 +687,8 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
         //avoid TRX flood attack here.
         if (msg.getInventoryType().equals(InventoryType.TRX)
-            && peer.isAdvInvFull()) {
+            && (peer.isAdvInvFull()
+        || del.isStoreInhibit())) {
           logger.info("A peer is flooding us, stop handle inv, the peer is:" + peer);
           return;
         }

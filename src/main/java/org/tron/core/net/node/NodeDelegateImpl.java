@@ -2,6 +2,7 @@ package org.tron.core.net.node;
 
 import static org.tron.core.config.Parameter.ChainConstant.BLOCK_PRODUCED_INTERVAL;
 import static org.tron.core.config.Parameter.ChainConstant.BLOCK_SIZE;
+import static org.tron.core.config.Parameter.NodeConstant.MAX_TRANSACTION_PENDING;
 
 import com.google.common.primitives.Longs;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import org.tron.common.utils.Sha256Hash;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.BlockCapsule.BlockId;
 import org.tron.core.capsule.TransactionCapsule;
+import org.tron.core.config.Parameter;
 import org.tron.core.config.Parameter.NodeConstant;
 import org.tron.core.db.Manager;
 import org.tron.core.exception.BadBlockException;
@@ -337,6 +339,10 @@ public class NodeDelegateImpl implements NodeDelegate {
   public BlockCapsule getGenesisBlock() {
     //TODO return a genesisBlock
     return dbManager.getGenesisBlock();
+  }
+
+  public boolean isStoreInhibit() {
+    return dbManager.getPendingTransactions().size() > MAX_TRANSACTION_PENDING;
   }
 
   //  @Override
