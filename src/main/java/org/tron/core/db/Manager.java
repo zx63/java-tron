@@ -945,14 +945,14 @@ public class Manager {
       // apply transaction
       try (Dialog tmpDialog = revokingStore.buildDialog()) {
 
-        logger.info("boss before process trx: id: {}, size: ", blockCapsule.getBlockId(), trx.getSerializedSize());
+        logger.info("boss before process trx: id: {}, size: {}", blockCapsule.getBlockId(), trx.getSerializedSize());
         processTransaction(trx);
-        logger.info("boss after process trx: id: {}, size: ", blockCapsule.getBlockId(), trx.getSerializedSize());
+        logger.info("boss after process trx: id: {}, size: {}", blockCapsule.getBlockId(), trx.getSerializedSize());
         tmpDialog.merge();
         // push into block
-        logger.info("boss before add trx: id: {}, size: ", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
+        logger.info("boss before add trx: id: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
         blockCapsule.addTransaction(trx);
-        logger.info("boss after add trx: id: {}, size: ", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
+        logger.info("boss after add trx: id: {}, size: {}", blockCapsule.getBlockId(), blockCapsule.getInstance().getSerializedSize());
         iterator.remove();
       } catch (ContractExeException e) {
         logger.info("contract not processed during execute");
