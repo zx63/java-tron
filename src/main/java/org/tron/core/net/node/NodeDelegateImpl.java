@@ -54,6 +54,7 @@ public class NodeDelegateImpl implements NodeDelegate {
       throws BadBlockException, UnLinkedBlockException, InterruptedException {
 
     if (block.getInstance().getSerializedSize() > BLOCK_SIZE + 100) {
+      logger.info("block size over limit {}", block.getInstance().getSerializedSize());
       throw new BadBlockException("block size over limit");
     }
 

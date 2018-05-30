@@ -933,6 +933,7 @@ public class Manager {
       currentTrxSize += trx.getSerializedSize();
       // check the block size
       if (currentTrxSize + 2 > ChainConstant.BLOCK_SIZE) {
+        logger.info("current block size {}", currentTrxSize);
         postponedTrxCount++;
         continue;
       }
