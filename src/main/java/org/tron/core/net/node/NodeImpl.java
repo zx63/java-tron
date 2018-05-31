@@ -92,7 +92,7 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
       .recordStats().build();
 
   private Cache<Long, Long> fetchWaterLine = CacheBuilder.newBuilder()
-      .expireAfterWrite(BLOCK_PRODUCED_INTERVAL / 1000 * MAX_ACTIVE_WITNESS_NUM, TimeUnit.SECONDS)
+      .expireAfterWrite(BLOCK_PRODUCED_INTERVAL / 1000 * 4, TimeUnit.SECONDS)
       .recordStats().build();
 
   private int maxTrxsSize = 1_000_000;
@@ -722,7 +722,7 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
   private boolean isFlooded() {
     return fetchWaterLine.asMap().values().stream().mapToLong(Long::longValue).sum()
-        > BLOCK_PRODUCED_INTERVAL * NET_MAX_TRX_PER_SECOND * MAX_ACTIVE_WITNESS_NUM / 1000;
+        > BLOCK_PRODUCED_INTERVAL * NET_MAX_TRX_PER_SECOND * 4 / 1000;
   }
 
   private void addWaterLine() {
