@@ -1,5 +1,6 @@
 package org.tron.core.db;
 
+import static org.tron.core.config.Parameter.ChainConstant.BLOCK_PRODUCED_TIME_OUT;
 import static org.tron.core.config.Parameter.ChainConstant.SOLIDIFIED_THRESHOLD;
 import static org.tron.core.config.Parameter.ChainConstant.WITNESS_PAY_PER_BLOCK;
 import static org.tron.core.config.Parameter.NodeConstant.MAX_TRANSACTION_PENDING;
@@ -932,7 +933,7 @@ public class Manager {
     Iterator iterator = pendingTransactions.iterator();
     while (iterator.hasNext()) {
       TransactionCapsule trx = (TransactionCapsule) iterator.next();
-      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5) {
+      if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5 * BLOCK_PRODUCED_TIME_OUT) {
         logger.debug("Processing transaction time exceeds the 50% producing time。");
         break;
       }
