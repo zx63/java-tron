@@ -1,6 +1,7 @@
 package org.tron.core.net.node;
 
 import static org.tron.core.config.Parameter.ChainConstant.BLOCK_PRODUCED_INTERVAL;
+import static org.tron.core.config.Parameter.ChainConstant.MAX_ACTIVE_WITNESS_NUM;
 import static org.tron.core.config.Parameter.NetConstants.MAX_TRX_PER_PEER;
 import static org.tron.core.config.Parameter.NetConstants.MSG_CACHE_DURATION_IN_BLOCKS;
 import static org.tron.core.config.Parameter.NetConstants.NET_MAX_TRX_PER_SECOND;
@@ -91,7 +92,7 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
       .recordStats().build();
 
   private Cache<Long, Long> fetchWaterLine = CacheBuilder.newBuilder()
-      .expireAfterWrite(BLOCK_PRODUCED_INTERVAL / 1000, TimeUnit.SECONDS)
+      .expireAfterWrite(BLOCK_PRODUCED_INTERVAL / 1000 * MAX_ACTIVE_WITNESS_NUM, TimeUnit.SECONDS)
       .recordStats().build();
 
   private int maxTrxsSize = 1_000_000;
@@ -721,7 +722,7 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
 
   private boolean isFlooded() {
     return fetchWaterLine.asMap().values().stream().mapToLong(Long::longValue).sum()
-        > BLOCK_PRODUCED_INTERVAL * NET_MAX_TRX_PER_SECOND / 1000;
+        > BLOCK_PRODUCED_INTERVAL * NET_MAX_TRX_PER_SECOND * MAX_ACTIVE_WITNESS_NUM / 1000;
   }
 
   private void addWaterLine() {
