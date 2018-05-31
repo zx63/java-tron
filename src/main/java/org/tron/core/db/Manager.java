@@ -455,14 +455,14 @@ public class Manager {
       throw new TooBigTransactionException(
           "too big transaction, the size is " + transactionCapsule.getData().length + " bytes");
     }
-    long transactionExpiration = transactionCapsule.getExpiration();
-    long headBlockTime = getHeadBlockTimeStamp();
-    if (transactionExpiration <= headBlockTime ||
-        transactionExpiration > headBlockTime + Constant.MAXIMUM_TIME_UNTIL_EXPIRATION) {
-      throw new TransactionExpirationException(
-          "transaction expiration, transaction expiration time is " + transactionExpiration
-              + ", but headBlockTime is " + headBlockTime);
-    }
+//    long transactionExpiration = transactionCapsule.getExpiration();
+//    long headBlockTime = getHeadBlockTimeStamp();
+//    if (transactionExpiration <= headBlockTime ||
+//        transactionExpiration > headBlockTime + Constant.MAXIMUM_TIME_UNTIL_EXPIRATION) {
+//      throw new TransactionExpirationException(
+//          "transaction expiration, transaction expiration time is " + transactionExpiration
+//              + ", but headBlockTime is " + headBlockTime);
+//    }
   }
 
   void validateDup(TransactionCapsule transactionCapsule) throws DupTransactionException {
