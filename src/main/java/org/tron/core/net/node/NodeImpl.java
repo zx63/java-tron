@@ -721,6 +721,12 @@ public class NodeImpl extends PeerConnectionDelegate implements Node {
   }
 
   private boolean isFlooded() {
+    try {
+      long value = fetchWaterLine.get(Time.getCurrentMillis() / 1000, () -> 0L);
+      fetchWaterLine.put(Time.getCurrentMillis() / 1000, value);
+    } catch (ExecutionException e) {
+      e.printStackTrace();
+    }
     return fetchWaterLine.asMap().values().stream().mapToLong(Long::longValue).sum()
         > BLOCK_PRODUCED_INTERVAL * NET_MAX_TRX_PER_SECOND * 4 / 1000;
   }
