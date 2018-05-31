@@ -934,7 +934,7 @@ public class Manager {
     while (iterator.hasNext()) {
       TransactionCapsule trx = (TransactionCapsule) iterator.next();
       if (DateTime.now().getMillis() - when > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5 * BLOCK_PRODUCED_TIME_OUT) {
-        logger.debug("Processing transaction time exceeds the 50% producing time。");
+        logger.warn("Processing transaction time exceeds the 50% producing time.");
         break;
       }
       currentTrxSize = blockCapsule.getInstance().getSerializedSize() + trx.getSerializedSize() + 3;
