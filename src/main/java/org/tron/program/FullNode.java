@@ -29,7 +29,7 @@ public class FullNode {
     }
 
     DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
-    beanFactory.setAllowCircularReferences(false);
+    beanFactory.setAllowCircularReferences(true);
     AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(beanFactory);
     context.register(DefaultConfig.class);
     context.refresh();

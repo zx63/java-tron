@@ -118,6 +118,8 @@ public class RpcApiService implements Service {
         }
       } else {
         serverBuilder = serverBuilder.addService(new WalletApi());
+        serverBuilder = serverBuilder.addService(new WalletSolidityApi());
+        serverBuilder = serverBuilder.addService(new WalletExtensionApi());
       }
 
       // Set configs from config.conf or default value
