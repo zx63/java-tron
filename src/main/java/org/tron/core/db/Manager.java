@@ -869,7 +869,7 @@ public class Manager {
       return false;
     }
     validateTapos(trxCap);
-    validateCommon(trxCap);
+    //validateCommon(trxCap);
 
     if (trxCap.getInstance().getRawData().getContractList().size() != 1) {
       throw new ContractValidateException("act size greater than 1, this is extend feature");
@@ -934,7 +934,7 @@ public class Manager {
       TransactionCapsule trx = (TransactionCapsule) iterator.next();
       if (DateTime.now().getMillis() - when
           > ChainConstant.BLOCK_PRODUCED_INTERVAL * 0.5 * ChainConstant.BLOCK_PRODUCED_TIME_OUT) {
-        logger.debug("Processing transaction time exceeds the 50% producing time。");
+        logger.warn("Processing transaction time exceeds the 50% producing time.");
         break;
       }
       // check the block size
