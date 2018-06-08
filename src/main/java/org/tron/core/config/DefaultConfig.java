@@ -28,9 +28,9 @@ public class DefaultConfig {
 
   @Bean
   public IndexHelper indexHelper() {
-    if (!Args.getInstance().isSolidityNode()) {
-      return null;
-    }
+//    if (!Args.getInstance().isSolidityNode()) {
+//      return null;
+//    }
     return new IndexHelper();
   }
 

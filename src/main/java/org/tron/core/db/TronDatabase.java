@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.tron.common.storage.leveldb.LevelDbDataSourceImpl;
 import org.tron.common.utils.Quitable;
 import org.tron.core.config.args.Args;
@@ -19,6 +20,7 @@ public abstract class TronDatabase<T> implements Iterable<Map.Entry<byte[], T>>,
   protected LevelDbDataSourceImpl dbSource;
 
   @Autowired(required = false)
+  @Lazy
   protected IndexHelper indexHelper;
 
   protected TronDatabase(String dbName) {

@@ -103,7 +103,7 @@ public class StoreAPI {
         index.retrieve(
             equal(TransactionIndex.OWNERS, address),
             queryOptions(
-                orderBy(ascending(TransactionIndex.TIMESTAMP)),
+//                orderBy(ascending(TransactionIndex.TIMESTAMP)),
                 applyThresholds(threshold(INDEX_ORDERING_SELECTIVITY, 1.0))))) {
       if (limit > TRANSACTIONS_COUNT_LIMIT_MAX) {
         limit = TRANSACTIONS_COUNT_LIMIT_MAX;
@@ -122,7 +122,7 @@ public class StoreAPI {
         index.retrieve(
             equal(TransactionIndex.TOS, address),
             queryOptions(
-                orderBy(ascending(TransactionIndex.TIMESTAMP)),
+//                orderBy(ascending(TransactionIndex.TIMESTAMP)),
                 applyThresholds(threshold(INDEX_ORDERING_SELECTIVITY, 1.0))))) {
       if (limit > TRANSACTIONS_COUNT_LIMIT_MAX) {
         limit = TRANSACTIONS_COUNT_LIMIT_MAX;
